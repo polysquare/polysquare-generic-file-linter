@@ -1,0 +1,24 @@
+language: python
+python:
+- '2.7'
+- '3.3'
+- pypy
+install:
+- pip install setuptools flake8 pylint
+- gem install mdl
+script:
+- python setup.py build
+- python setup.py test
+- pylint -f colorized tests/ polysquarelinter/ --disable=r0903,R0904
+- flake8 .
+- mdl .
+after_success:
+- python setup.py sdist
+deploy:
+  provider: pypi
+  user: smspillaz
+  password:
+    secure: ZnhModnrfduaNAor01dfPy+y/46fY35DkNuLEeJxEGaXZE12TFLLd1OLwZ/9SJsSKKq2NVQ976ufXJ5O+WjfN/xCJHkGyeqxYhQzX5unkiEApOaVJzj3vrmjDSYM+cEnA3MA9L2mY096+VGnqieUEoxNePEhAUCzP8AyCX5+6XQ=
+  on:
+    repo: polysquare/polysquare-generic-file-linter
+    branch: master
