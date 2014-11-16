@@ -76,7 +76,7 @@ def _space_in_headerblock(relative_path, contents):
 def _copyright_end_of_headerblock(relative_path, contents):
     """Check for copyright notice at end of headerblock"""
     del relative_path
-    headerblock = re.compile(r"^( \*|#|//).*$")
+    headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
     lineno = 0
     while headerblock.match(contents[lineno]):
         if lineno + 1 == len(contents):
@@ -85,7 +85,7 @@ def _copyright_end_of_headerblock(relative_path, contents):
 
     lineno = lineno - 1
     notice = "See LICENCE.md for Copyright information"
-    regex = re.compile(r"^( \*|#|//) {0}$".format(notice))
+    regex = re.compile(r"^( \*|#|//) {0}( .*$|$)".format(notice))
     if not regex.match(contents[lineno]):
         description = "The last of the header block line must have the "\
                       "following notice: {0}"

@@ -117,6 +117,20 @@ class TestCopyrightNotice(unittest.TestCase):
                                   whitelist=["headerblock/copyright"])
         self.assertTrue(result)
 
+    def test_lint_pass_c89(self):
+        """Checks that headerblock/copyright passes for C89 style comments
+
+
+        Test passes where "See LICENCE.md for Copyright information" appears
+        at the end of the header block (along with */)
+        """
+        result = run_linter_throw("path/to/file",
+                                  "/* /path/to/file\n *\n * "
+                                  "See LICENCE.md for Copyright "
+                                  "information */\n\n",
+                                  whitelist=["headerblock/copyright"])
+        self.assertTrue(result)
+
     def test_lint_fail(self):
         """Checks that headerblock/copyright fails
 
