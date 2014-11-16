@@ -118,7 +118,7 @@ class TestNewlineAsLastChar(unittest.TestCase):
         Test passes where "\n" is the last character in the file
         """
         result = run_linter_throw("path/to/file",
-                                  "#\n\n",
+                                  "#\n#\n",
                                   whitelist=["file/newline_last_char"])
         self.assertTrue(result)
 
@@ -130,7 +130,7 @@ class TestNewlineAsLastChar(unittest.TestCase):
         """
         with self.assertRaises(LinterFailure):
             run_linter_throw("path/to/file",
-                             "#\n",
+                             "#\n#",
                              whitelist=["file/newline_last_char"])
 
 if __name__ == "__main__":
