@@ -14,6 +14,9 @@ script:
 - flake8 tests/ polysquarelinter/
 - mdl .
 - find polysquarelinter tests -type f -name "*.py" | xargs -L 1 polysquare-generic-file-linter
+after_success:
+- rm -rf polysquare_generic_file_linter.egg-info/
+- rm -rf build/
 deploy:
   provider: pypi
   user: smspillaz
