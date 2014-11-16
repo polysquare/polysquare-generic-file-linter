@@ -19,7 +19,8 @@ after_success:
 - rm -rf build/
 deploy:
   provider: pypi
-  user: smspillaz
+  user:
+    secure: CtbbLFM7+9o+skLwdzjBsU7S7LbmmCfiZs947+CSFqs+kkAzTghIGllYHZHmd6W2FKjM7E3hiBvGrgkSRIJzygjwvEfXbp8kwFdpOyWVj3wy7/FpERxha4nWRfnU0/pyJJyIEPdo55YVqd72VU0grqu6BDfCXTKacTzD8ZSV58U=
   password:
     secure: ZnhModnrfduaNAor01dfPy+y/46fY35DkNuLEeJxEGaXZE12TFLLd1OLwZ/9SJsSKKq2NVQ976ufXJ5O+WjfN/xCJHkGyeqxYhQzX5unkiEApOaVJzj3vrmjDSYM+cEnA3MA9L2mY096+VGnqieUEoxNePEhAUCzP8AyCX5+6XQ=
   on:
