@@ -44,7 +44,7 @@ class TestFilenameHeaderWarnings(unittest.TestCase):
                                   whitelist=["headerblock/filename"])
         self.assertTrue(result)
 
-    def test_lint_fail(self):
+    def test_lint_fail_malformed(self):
         """Checks that headerblock/filename fails
 
         Test fails where /path/to/file is not in the header on the first line
@@ -52,6 +52,16 @@ class TestFilenameHeaderWarnings(unittest.TestCase):
         with self.assertRaises(LinterFailure):
             run_linter_throw("path/to/file",
                              "# path/to/file_wrong\n#\n",
+                             whitelist=["headerblock/filename"])
+
+    def test_lint_fail_short(self):
+        """Checks that headerblock/filename fails
+
+        Test fails where there are no lines
+        """
+        with self.assertRaises(LinterFailure):
+            run_linter_throw("path/to/file",
+                             "",
                              whitelist=["headerblock/filename"])
 
 
@@ -68,7 +78,7 @@ class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
                                   whitelist=["headerblock/desc_space"])
         self.assertTrue(result)
 
-    def test_lint_fail(self):
+    def test_lint_fail_malformed(self):
         """Checks that headerblock/desc_space fails
 
 
@@ -77,6 +87,17 @@ class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
         with self.assertRaises(LinterFailure):
             run_linter_throw("path/to/file",
                              "#\n# Text",
+                             whitelist=["headerblock/desc_space"])
+
+    def test_lint_fail_short(self):
+        """Checks that headerblock/desc_space fails
+
+
+        Test fail where there are not even two lines
+        """
+        with self.assertRaises(LinterFailure):
+            run_linter_throw("path/to/file",
+                             "#\n",
                              whitelist=["headerblock/desc_space"])
 
 

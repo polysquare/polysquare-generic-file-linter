@@ -43,6 +43,10 @@ def _filename_in_headerblock(relative_path, contents):
     like such:
     # /path/to/filename
     """
+    if len(contents) < 1:
+        description = "Document cannot have less than one lines"
+        raise LinterCheckFailure(description, 1)
+
     regex = re.compile(r"^(\/\*|#|//) \/" + re.escape(relative_path) + "$")
     if not regex.match(contents[0]):
         description = "The filename /{0} must be the first line of the header"
@@ -58,6 +62,11 @@ def _space_in_headerblock(relative_path, contents):
     # Description
     """
     del relative_path
+
+    if len(contents) < 2:
+        description = "Document cannot have less than two lines"
+        raise LinterCheckFailure(description, 1)
+
     regex = re.compile(r"^( \*\/| \*|#|//)$")
     if not regex.match(contents[1]):
         description = "The second line must be an empty comment"
