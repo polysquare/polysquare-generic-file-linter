@@ -43,6 +43,10 @@ def _filename_in_headerblock(relative_path, contents):
     like such:
     # /path/to/filename
     """
+    if len(contents) < 1:
+        description = "Document cannot have less than one lines"
+        raise LinterCheckFailure(description, 1)
+
     regex = re.compile(r"^(\/\*|#|//) \/" + re.escape(relative_path) + "$")
     if not regex.match(contents[0]):
         description = "The filename /{0} must be the first line of the header"
@@ -58,6 +62,11 @@ def _space_in_headerblock(relative_path, contents):
     # Description
     """
     del relative_path
+
+    if len(contents) < 2:
+        description = "Document cannot have less than two lines"
+        raise LinterCheckFailure(description, 1)
+
     regex = re.compile(r"^( \*\/| \*|#|//)$")
     if not regex.match(contents[1]):
         description = "The second line must be an empty comment"
@@ -67,7 +76,7 @@ def _space_in_headerblock(relative_path, contents):
 def _copyright_end_of_headerblock(relative_path, contents):
     """Check for copyright notice at end of headerblock"""
     del relative_path
-    headerblock = re.compile(r"^( \*|#|//).*$")
+    headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
     lineno = 0
     while headerblock.match(contents[lineno]):
         if lineno + 1 == len(contents):
@@ -76,7 +85,7 @@ def _copyright_end_of_headerblock(relative_path, contents):
 
     lineno = lineno - 1
     notice = "See LICENCE.md for Copyright information"
-    regex = re.compile(r"^( \*|#|//) {0}$".format(notice))
+    regex = re.compile(r"^( \*|#|//) {0}( .*$|$)".format(notice))
     if not regex.match(contents[lineno]):
         description = "The last of the header block line must have the "\
                       "following notice: {0}"
