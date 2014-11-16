@@ -9,11 +9,11 @@ install:
 script:
 - python setup.py build
 - python setup.py test
+- python setup.py install
 - pylint -f colorized tests/ polysquarelinter/ --disable=r0903,R0904
-- flake8 .
+- flake8 tests/ polysquarelinter/
 - mdl .
-after_success:
-- python setup.py sdist
+- find polysquarelinter tests -type f -name "*.py" | xargs -L 1 polysquare-generic-file-linter
 deploy:
   provider: pypi
   user: smspillaz

@@ -1,8 +1,8 @@
-# /linter/__init__.py
+# /polysquarelinter/__init__.py
 #
 # Entry point for linter.
 #
-# See LICENCE.md for Copyright information.
+# See LICENCE.md for Copyright information
 """ Init module for linter """
 
 import polysquarelinter.linter

@@ -1,8 +1,8 @@
-# /linter/linter.py
+# /polysquarelinter/linter.py
 #
 # Entry point for linter.
 #
-# See LICENCE.md for Copyright information.o
+# See LICENCE.md for Copyright information
 """ Main module for linter """
 
 import argparse
@@ -86,8 +86,8 @@ def _copyright_end_of_headerblock(relative_path, contents):
 def _newline_end_of_file(relative_path, contents):
     """Check that every file ends with a single \n"""
     del relative_path
-    if not contents[len(contents) - 1] == "":
-        raise LinterCheckFailure("No \n at end of file", len(contents))
+    if not contents[len(contents) - 1].endswith("\n"):
+        raise LinterCheckFailure(r"No \n at end of file", len(contents))
 
 
 def run_linter(relative_path, contents, linter_function, code):
@@ -131,7 +131,7 @@ def lint(relative_path_to_file,
     reported.
     """
 
-    contents_lines = contents.splitlines()
+    contents_lines = contents.splitlines(True)
     linter_functions = LINTER_FUNCTIONS
 
     # Filter linters, firstly by whitelist
@@ -173,6 +173,39 @@ class ShowAvailableChecksAction(argparse.Action):
             sys.exit(0)
 
 
+class ExitStatus(object):
+    """A singleton encapsulating our exit status"""
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(ExitStatus, cls).__new__(cls,
+                                                           *args,
+                                                           **kwargs)
+            cls._instance.exit_status = 0
+
+        return cls._instance
+
+    def error_reported(self):
+        """Call when there is an error. Bumps exit_status"""
+        self.exit_status = self.exit_status + 1
+
+    def exit(self):
+        """Calls sys.exit with the number of errors encountered"""
+        sys.exit(self.exit_status)
+
+
+def report_errors_at_runtime(msg):
+    """Writes error to stderr and bumps ExitStatus
+
+
+    ExitStatus will reflect how many failures there have been
+    """
+    sys.stderr.write("{0}".format(msg))
+    ExitStatus().error_reported()
+
+
 def main():
     """Entry point for the linter"""
 
@@ -182,23 +215,27 @@ def main():
                         nargs=0,
                         action=ShowAvailableChecksAction,
                         help="list available checks")
-    parser.add_argument("file",
+    parser.add_argument("files",
+                        nargs="*",
                         metavar=("FILE"),
                         help="read FILE",
                         type=argparse.FileType("r"))
     parser.add_argument("--whitelist",
                         nargs="*",
                         help="list of checks that should only be run",
-                        default=[])
+                        default=None)
     parser.add_argument("--blacklist",
                         nargs="*",
                         help="list of checks that should never be run",
-                        default=[])
+                        default=None)
 
     result = parser.parse_args()
 
-    lint(os.path.abspath(result.file.name)[len(os.getcwd()) + 1:],
-         result.file.read(),
-         result.whitelist,
-         result.blacklist,
-         report=lambda msg: sys.stderr.write("{1}\n".format(msg)))
+    for found_file in result.files:
+        lint(os.path.abspath(found_file.name)[len(os.getcwd()) + 1:],
+             found_file.read(),
+             result.whitelist,
+             result.blacklist,
+             report=report_errors_at_runtime)
+
+    ExitStatus().exit()
