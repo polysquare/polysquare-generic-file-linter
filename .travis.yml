@@ -4,17 +4,19 @@ python:
 - '3.3'
 - pypy
 install:
-- pip install setuptools flake8 pylint
+- pip install setuptools flake8 pylint coverage python-coveralls
 - gem install mdl
 script:
 - python setup.py build
-- python setup.py test
+- coverage run --source=polysquarelinter setup.py test
 - python setup.py install
 - pylint -f colorized tests/ polysquarelinter/ --disable=r0903,R0904
 - flake8 tests/ polysquarelinter/
 - mdl .
 - find polysquarelinter tests -type f -name "*.py" | xargs -L 1 polysquare-generic-file-linter
 after_success:
+- coverage report -m
+- coveralls
 - rm -rf polysquare_generic_file_linter.egg-info/
 - rm -rf build/
 deploy:

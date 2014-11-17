@@ -6,35 +6,27 @@
 """ Main module for linter """
 
 import argparse
+from collections import namedtuple
 import os
 import re
 import sys
 
 
-class LinterFailureError(Exception):
-    """Exception raised when lint() fails"""
-
-    def __init__(self, code, line, description):
-        super(LinterFailureError, self).__init__(self)
-        self.description = description
-        self.code = code
-        self.line = line
-
-    def __str__(self):
-        error = ":{self.line} - [{self.code}]: {self.description}"
-        return str(error.format(self=self))
+def _comment_type_from_line(line):
+    """Returns the "comment header" (eg ' * ', '# ', '// ')
 
 
-class LinterCheckFailure(Exception):
-    """Exception raised by individual linters when they fail"""
+    This header goes before the content of a start of the line in a replacement
+    """
+    regex = re.compile(r"^( \*|#|//)")
+    match = regex.match(line)
+    if match:
+        return "{0} ".format(line[match.start():match.end()])
 
-    def __init__(self, description, line):
-        super(LinterCheckFailure, self).__init__(self)
-        self.description = description
-        self.line = line
+    raise RuntimeError("Unable to find comment header for {0}".format(line))
 
-    def __str__(self):
-        return str("{self.description}".format(self=self))
+
+LinterFailure = namedtuple("LinterFailure", "description line replacement")
 
 
 def _filename_in_headerblock(relative_path, contents):
@@ -45,12 +37,14 @@ def _filename_in_headerblock(relative_path, contents):
     """
     if len(contents) < 1:
         description = "Document cannot have less than one lines"
-        raise LinterCheckFailure(description, 1)
+        return LinterFailure(description, 1, replacement=None)
 
     regex = re.compile(r"^(\/\*|#|//) \/" + re.escape(relative_path) + "$")
     if not regex.match(contents[0]):
         description = "The filename /{0} must be the first line of the header"
-        raise LinterCheckFailure(description.format(relative_path), 1)
+        return LinterFailure(description.format(relative_path), 1,
+                             _comment_type_from_line(contents[0]) +
+                             "/{0}\n".format(relative_path))
 
 
 def _space_in_headerblock(relative_path, contents):
@@ -65,12 +59,14 @@ def _space_in_headerblock(relative_path, contents):
 
     if len(contents) < 2:
         description = "Document cannot have less than two lines"
-        raise LinterCheckFailure(description, 1)
+        return LinterFailure(description, 1, replacement=None)
 
     regex = re.compile(r"^( \*\/| \*|#|//)$")
     if not regex.match(contents[1]):
         description = "The second line must be an empty comment"
-        raise LinterCheckFailure(description, 2)
+        return LinterFailure(description, 2,
+                             _comment_type_from_line(contents[1])[:-1] + "\n" +
+                             contents[1])
 
 
 def _copyright_end_of_headerblock(relative_path, contents):
@@ -80,7 +76,7 @@ def _copyright_end_of_headerblock(relative_path, contents):
     lineno = 0
     while headerblock.match(contents[lineno]):
         if lineno + 1 == len(contents):
-            raise LinterCheckFailure("No end of headerblock", lineno)
+            return LinterFailure("No end of headerblock", lineno, None)
         lineno = lineno + 1
 
     lineno = lineno - 1
@@ -89,29 +85,33 @@ def _copyright_end_of_headerblock(relative_path, contents):
     if not regex.match(contents[lineno]):
         description = "The last of the header block line must have the "\
                       "following notice: {0}"
-        raise LinterCheckFailure(description.format(notice), lineno + 1)
+        replacement = None
+        comment = _comment_type_from_line(contents[lineno])
+        # If the last line has the words "Copyright" or "LICENCE.md" the
+        # user probably attempted to add a notice, but failed, so just
+        # suggest replacing the whole line
+        if re.compile(r"^.*(Copyright|LICENCE.md).*$").match(contents[lineno]):
+            replacement = "{0}{1}\n".format(comment, notice)
+        # Put the copyright notice on a new line
+        else:
+            replacement = "{0}{1}{2}\n".format(contents[lineno],
+                                               comment,
+                                               notice)
+
+        return LinterFailure(description.format(notice),
+                             lineno + 1,
+                             replacement)
 
 
 def _newline_end_of_file(relative_path, contents):
     """Check that every file ends with a single \n"""
     del relative_path
-    if not contents[len(contents) - 1].endswith("\n"):
-        raise LinterCheckFailure(r"No \n at end of file", len(contents))
+    last_line = len(contents) - 1
+    if not contents[last_line].endswith("\n"):
+        return LinterFailure(r"No \n at end of file",
+                             last_line + 1,
+                             "{0}\n".format(contents[last_line]))
 
-
-def run_linter(relative_path, contents, linter_function, code):
-    """Runs the linter_function over contents for relative_path
-
-    raises LinterFailureError with its code if it fails
-    """
-    try:
-        linter_function(relative_path, contents)
-    except LinterCheckFailure as check_failure:
-        raise LinterFailureError(code,
-                                 check_failure.line,
-                                 check_failure.description)
-
-    return True
 
 LINTER_FUNCTIONS = {
     "headerblock/filename": _filename_in_headerblock,
@@ -121,16 +121,10 @@ LINTER_FUNCTIONS = {
 }
 
 
-def _report_nothing(msg):
-    """Null reporter"""
-    del msg
-
-
 def lint(relative_path_to_file,
          contents,
          whitelist=None,
-         blacklist=None,
-         report=_report_nothing):
+         blacklist=None):
     """Actually lints some file contents.
 
     relative_path_to_file should
@@ -156,18 +150,11 @@ def lint(relative_path_to_file,
 
     linter_errors = []
     for (code, function) in linter_functions.items():
-        try:
-            run_linter(relative_path_to_file, contents_lines, function, code)
-        except LinterFailureError as linter_error:
-            linter_errors.append(linter_error)
+        error = function(relative_path_to_file, contents_lines)
+        if error:
+            linter_errors.append((code, error))
 
-    if len(linter_errors) > 0:
-        for error in linter_errors:
-            report("{0}{1}\n".format(relative_path_to_file, error))
-
-        return False
-    else:
-        return True
+    return linter_errors
 
 
 class ShowAvailableChecksAction(argparse.Action):
@@ -182,41 +169,8 @@ class ShowAvailableChecksAction(argparse.Action):
             sys.exit(0)
 
 
-class ExitStatus(object):
-    """A singleton encapsulating our exit status"""
-
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = super(ExitStatus, cls).__new__(cls,
-                                                           *args,
-                                                           **kwargs)
-            cls._instance.exit_status = 0
-
-        return cls._instance
-
-    def error_reported(self):
-        """Call when there is an error. Bumps exit_status"""
-        self.exit_status = self.exit_status + 1
-
-    def exit(self):
-        """Calls sys.exit with the number of errors encountered"""
-        sys.exit(self.exit_status)
-
-
-def report_errors_at_runtime(msg):
-    """Writes error to stderr and bumps ExitStatus
-
-
-    ExitStatus will reflect how many failures there have been
-    """
-    sys.stderr.write("{0}".format(msg))
-    ExitStatus().error_reported()
-
-
-def main():
-    """Entry point for the linter"""
+def _parse_arguments():
+    """Returns a parser context result"""
 
     parser = argparse.ArgumentParser(description="Lint for Polysquare "
                                      "style guide")
@@ -228,7 +182,7 @@ def main():
                         nargs="*",
                         metavar=("FILE"),
                         help="read FILE",
-                        type=argparse.FileType("r"))
+                        type=argparse.FileType("r+"))
     parser.add_argument("--whitelist",
                         nargs="*",
                         help="list of checks that should only be run",
@@ -237,14 +191,63 @@ def main():
                         nargs="*",
                         help="list of checks that should never be run",
                         default=None)
+    parser.add_argument("--fix-what-you-can",
+                        action="store_const",
+                        const=True)
 
-    result = parser.parse_args()
+    return parser.parse_args()
 
+
+def _report_lint_error(error, file_path):
+    """Report a linter error"""
+    line = error[1].line
+    code = error[0]
+    description = error[1].description
+    sys.stderr.write("{0}:{1} [{2}] {3}".format(file_path,
+                                                line,
+                                                code,
+                                                description))
+
+
+def _apply_replacement(error, found_file, file_lines):
+    """Apply a single replacement"""
+    fixed_lines = file_lines
+    fixed_lines[error[1].line - 1] = error[1].replacement
+    concatenated_fixed_lines = "".join(fixed_lines)
+
+    # Only fix one error at a time
+    found_file.seek(0)
+    found_file.write(concatenated_fixed_lines)
+    found_file.truncate()
+
+
+def main():
+    """Entry point for the linter"""
+    result = _parse_arguments()
+
+    num_errors = 0
     for found_file in result.files:
-        lint(os.path.abspath(found_file.name)[len(os.getcwd()) + 1:],
-             found_file.read(),
-             result.whitelist,
-             result.blacklist,
-             report=report_errors_at_runtime)
+        file_path = os.path.abspath(found_file.name)
+        file_contents = found_file.read()
+        file_lines = file_contents.splitlines(True)
+        try:
+            errors = lint(file_path[len(os.getcwd()) + 1:],
+                          file_contents,
+                          result.whitelist,
+                          result.blacklist)
+        except RuntimeError as err:
+            msg = "RuntimeError in processing {0} - {1}".format(file_path,
+                                                                str(err))
+            raise RuntimeError(msg)
+        for error in errors:
+            _report_lint_error(error, file_path)
+            if result.fix_what_you_can and error[1].replacement is not None:
+                _apply_replacement(error, found_file, file_lines)
+                sys.stderr.write(" ... FIXED\n")
+                break
 
-    ExitStatus().exit()
+            sys.stderr.write("\n")
+
+        num_errors += len(errors)
+
+    sys.exit(num_errors)
