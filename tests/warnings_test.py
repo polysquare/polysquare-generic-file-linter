@@ -136,6 +136,43 @@ class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
                          (2, "#\n# Text"))
 
 
+class TestSpaceDescAndCopyrightWarnings(unittest.TestCase):
+    """Test case for a single blank comment between bottom and body"""
+    def test_lint_pass(self):
+        """Checks that headerblock/space_copyright passes
+
+
+        Test passes where there is a single blank comment on the second
+        last line
+        """
+        result = run_linter_throw("path/to/file",
+                                  "# /path/to/file\n#\n# Text\n\n",
+                                  whitelist=["headerblock/space_copyright"])
+        self.assertTrue(result)
+
+    def test_lint_fail(self):
+        """Checks that headerblock/desc_space_copyright fails
+
+
+        Test fails where there is not a single blank comment on the second
+        last line
+        """
+        with self.assertRaises(LinterFailure):
+            run_linter_throw("path/to/file",
+                             "# Text\n# Text\n # Text\n\n",
+                             whitelist=["headerblock/space_copyright"])
+
+    def test_suggest_insert_whitespace(self):
+        """Suggest a blank comment line for headerblock/space_copyright"""
+        with self.assertRaises(LinterFailure) as exception_context:
+            run_linter_throw("path/to/file",
+                             "# Text\n# Text\n# Text\n\n",
+                             whitelist=["headerblock/space_copyright"])
+
+        self.assertEqual(exception_context.exception.replacement,
+                         (3, "#\n# Text\n"))
+
+
 class TestCopyrightNotice(unittest.TestCase):
     """Test case for Copyright notice at end of header block"""
     def test_lint_pass(self):
@@ -180,7 +217,7 @@ class TestCopyrightNotice(unittest.TestCase):
 
     def test_lint_fail_no_end(self):
         """headerblock/copyright fails where headerblock has no ending"""
-        with self.assertRaises(LinterFailure):
+        with self.assertRaises(RuntimeError):
             run_linter_throw("path/to/file",
                              "# /path/to/file\n#\n#",
                              whitelist=["headerblock/copyright"])

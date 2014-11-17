@@ -47,6 +47,12 @@ def _filename_in_headerblock(relative_path, contents):
                              "/{0}\n".format(relative_path))
 
 
+def _match_space_at_line(line):
+    """Returns an re.match object if an empty comment was found on this line"""
+    regex = re.compile(r"^( \*\/| \*|#|//)$")
+    return regex.match(line)
+
+
 def _space_in_headerblock(relative_path, contents):
     """Check for a space between the filename in a header block and description
 
@@ -61,25 +67,48 @@ def _space_in_headerblock(relative_path, contents):
         description = "Document cannot have less than two lines"
         return LinterFailure(description, 1, replacement=None)
 
-    regex = re.compile(r"^( \*\/| \*|#|//)$")
-    if not regex.match(contents[1]):
+    if not _match_space_at_line(contents[1]):
         description = "The second line must be an empty comment"
         return LinterFailure(description, 2,
                              _comment_type_from_line(contents[1])[:-1] + "\n" +
                              contents[1])
 
 
+def _find_last_line_index(contents):
+    """Find the last line of the headerblock in contents"""
+    lineno = 0
+    headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
+    while headerblock.match(contents[lineno]):
+        if lineno + 1 == len(contents):
+            raise RuntimeError("No end of headerblock in file")
+        lineno = lineno + 1
+
+    return lineno - 1
+
+
+def _space_before_copyright(relative_path, contents):
+    """Check for a space between the last line and description
+
+    like such
+    # Description
+    #
+    # Last Line
+    """
+    del relative_path
+
+    last_line = _find_last_line_index(contents)
+    if not _match_space_at_line(contents[last_line - 1]):
+        comment = _comment_type_from_line(contents[last_line])[:-1]
+        description = "The second last line must be an empty comment"
+        return LinterFailure(description, last_line + 1,
+                             comment + "\n" + contents[last_line])
+
+
 def _copyright_end_of_headerblock(relative_path, contents):
     """Check for copyright notice at end of headerblock"""
     del relative_path
-    headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
-    lineno = 0
-    while headerblock.match(contents[lineno]):
-        if lineno + 1 == len(contents):
-            return LinterFailure("No end of headerblock", lineno, None)
-        lineno = lineno + 1
 
-    lineno = lineno - 1
+    lineno = _find_last_line_index(contents)
     notice = "See LICENCE.md for Copyright information"
     regex = re.compile(r"^( \*|#|//) {0}( .*$|$)".format(notice))
     if not regex.match(contents[lineno]):
@@ -116,6 +145,7 @@ def _newline_end_of_file(relative_path, contents):
 LINTER_FUNCTIONS = {
     "headerblock/filename": _filename_in_headerblock,
     "headerblock/desc_space": _space_in_headerblock,
+    "headerblock/space_copyright": _space_before_copyright,
     "headerblock/copyright": _copyright_end_of_headerblock,
     "file/newline_last_char": _newline_end_of_file
 }
