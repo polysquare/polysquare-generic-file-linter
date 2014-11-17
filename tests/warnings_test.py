@@ -162,6 +162,13 @@ class TestSpaceDescAndCopyrightWarnings(unittest.TestCase):
                              "# Text\n# Text\n # Text\n\n",
                              whitelist=["headerblock/space_copyright"])
 
+    def test_lint_fail_no_headerblock(self):
+        """RuntimeError where file does not have headerblock"""
+        with self.assertRaises(RuntimeError):
+            run_linter_throw("path/to/file",
+                             "\n",
+                             whitelist=["headerblock/space_copyright"])
+
     def test_suggest_insert_whitespace(self):
         """Suggest a blank comment line for headerblock/space_copyright"""
         with self.assertRaises(LinterFailure) as exception_context:
