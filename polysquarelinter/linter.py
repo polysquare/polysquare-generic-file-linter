@@ -83,6 +83,9 @@ def _find_last_line_index(contents):
             raise RuntimeError("No end of headerblock in file")
         lineno = lineno + 1
 
+    if lineno < 2:
+        raise RuntimeError("Headerblock must have at least two lines")
+
     return lineno - 1
 
 
