@@ -170,16 +170,19 @@ def lint(relative_path_to_file,
     contents_lines = contents.splitlines(True)
     linter_functions = LINTER_FUNCTIONS
 
-    # Filter linters, firstly by whitelist
-    if whitelist is not None:
-        linter_functions = {
-            k: v for (k, v) in linter_functions.items() if k in whitelist
+    def _keyvalue_pair_if(dictionary, condition):
+        """Returns a key-value pair in dictionary if condition matched"""
+        return {
+            k: v for (k, v) in dictionary.items() if condition(k)
         }
 
-    if blacklist is not None:
-        linter_functions = {
-            k: v for (k, v) in linter_functions.items() if k not in blacklist
-        }
+    whitelist = whitelist if whitelist is not None else []
+    blacklist = blacklist if blacklist is not None else []
+
+    linter_functions = _keyvalue_pair_if(linter_functions,
+                                         lambda k: k in whitelist)
+    linter_functions = _keyvalue_pair_if(linter_functions,
+                                         lambda k: k not in blacklist)
 
     linter_errors = []
     for (code, function) in linter_functions.items():
