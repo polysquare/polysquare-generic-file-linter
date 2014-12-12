@@ -2,19 +2,24 @@
 #
 # Test cases for each warning in polysquare-generic-file-linter
 #
+# Disable no-self-use in tests as all test methods must be
+# instance methods and we don't necessarily have to use a matcher
+# with them.
+# pylint:  disable=no-self-use
+#
 # See LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings"""
 
 from polysquarelinter import linter
-import unittest
+from testtools import (ExpectedException, TestCase)
 
 
 class LinterFailure(Exception):
     """Exception raised when the linter reports a message"""
-    def __init__(self, message, replacement):
+    def __init__(self, message, repl):
         super(LinterFailure, self).__init__()
         self.message = message
-        self.replacement = replacement
+        self.replacement = repl
 
     def __str__(self):
         return str("{0}".format(self.message))
@@ -37,7 +42,17 @@ def run_linter_throw(relative_path, contents, whitelist=None, blacklist=None):
     return True
 
 
-class TestFilenameHeaderWarnings(unittest.TestCase):
+# Needed to silence pychecker warning - pychecker doesn't detect
+# that self.assertRaises was overridden and thinks that the exception
+# object returned is not the exception itself but unittest's old
+# _ExceptionContext object
+def replacement(exception):
+    """Get replacement stored in exception"""
+    assert exception.__class__.__name__ == "LinterFailure"
+    return exception.replacement
+
+
+class TestFilenameHeaderWarnings(TestCase):
     """Test case for filenames being at the top of a header"""
     def test_lint_pass(self):
         """Checks that headerblock/filename passes
@@ -54,7 +69,7 @@ class TestFilenameHeaderWarnings(unittest.TestCase):
 
         Test fails where /path/to/file is not in the header on the first line
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "# path/to/file_wrong\n#\n",
                              whitelist=["headerblock/filename"])
@@ -64,7 +79,7 @@ class TestFilenameHeaderWarnings(unittest.TestCase):
 
         Test fails where /path/to/file is not in the header on the first line
         """
-        with self.assertRaises(RuntimeError):
+        with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "aabb\nbbcc",
                              whitelist=["headerblock/filename"])
@@ -74,23 +89,25 @@ class TestFilenameHeaderWarnings(unittest.TestCase):
 
         Test fails where there are no lines
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "",
                              whitelist=["headerblock/filename"])
 
     def test_suggest_filename(self):
         """Suggest the filename on headerblock/filename failure"""
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for first line of headerblock"""
             run_linter_throw("path/to/file",
                              "#\n# Text",
                              whitelist=["headerblock/filename"])
 
-        self.assertEqual(exception_context.exception.replacement,
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
                          (1, "# /path/to/file\n"))
 
 
-class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
+class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
     """Test case for a single blank comment between top and body of header"""
     def test_lint_pass(self):
         """Checks that headerblock/desc_space passes
@@ -109,7 +126,7 @@ class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
 
         Test fail where there is not a single blank comment on the second line
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "#\n# Text",
                              whitelist=["headerblock/desc_space"])
@@ -120,23 +137,25 @@ class TestSpaceBetweenHeaderAndDescWarnings(unittest.TestCase):
 
         Test fail where there are not even two lines
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "#\n",
                              whitelist=["headerblock/desc_space"])
 
-    def test_suggest_insert_whitespace(self):
+    def test_suggest_insert_break(self):
         """Suggest a blank comment line on headerblock/desc_space failure"""
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for lack of break"""
             run_linter_throw("path/to/file",
                              "#\n# Text",
                              whitelist=["headerblock/desc_space"])
 
-        self.assertEqual(exception_context.exception.replacement,
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
                          (2, "#\n# Text"))
 
 
-class TestSpaceDescAndCopyrightWarnings(unittest.TestCase):
+class TestSpaceDescAndCopyrightWarnings(TestCase):
     """Test case for a single blank comment between bottom and body"""
     def test_lint_pass(self):
         """Checks that headerblock/space_copyright passes
@@ -157,30 +176,32 @@ class TestSpaceDescAndCopyrightWarnings(unittest.TestCase):
         Test fails where there is not a single blank comment on the second
         last line
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "# Text\n# Text\n # Text\n\n",
                              whitelist=["headerblock/space_copyright"])
 
     def test_lint_fail_no_headerblock(self):
         """RuntimeError where file does not have headerblock"""
-        with self.assertRaises(RuntimeError):
+        with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "\n",
                              whitelist=["headerblock/space_copyright"])
 
-    def test_suggest_insert_whitespace(self):
+    def test_suggest_insert_break(self):
         """Suggest a blank comment line for headerblock/space_copyright"""
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for lack of break"""
             run_linter_throw("path/to/file",
                              "# Text\n# Text\n# Text\n\n",
                              whitelist=["headerblock/space_copyright"])
 
-        self.assertEqual(exception_context.exception.replacement,
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
                          (3, "#\n# Text\n"))
 
 
-class TestCopyrightNotice(unittest.TestCase):
+class TestCopyrightNotice(TestCase):
     """Test case for Copyright notice at end of header block"""
     def test_lint_pass(self):
         """Checks that headerblock/copyright passes
@@ -217,14 +238,14 @@ class TestCopyrightNotice(unittest.TestCase):
         Test fails where "See LICENCE.md for Copyright information" does not
         appear at the end of the header block
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "# /path/to/file\n#\n# No Copyright Notice\n\n",
                              whitelist=["headerblock/copyright"])
 
     def test_lint_fail_no_end(self):
         """headerblock/copyright fails where headerblock has no ending"""
-        with self.assertRaises(RuntimeError):
+        with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "# /path/to/file\n#\n#",
                              whitelist=["headerblock/copyright"])
@@ -237,12 +258,14 @@ class TestCopyrightNotice(unittest.TestCase):
         as the user probably intended (but typoed) to write the copyright
         notice
         """
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for partial Copyright notice"""
             run_linter_throw("path/to/file",
                              "# /path/to/file\n#\n# No Copyright Notice\n\n",
                              whitelist=["headerblock/copyright"])
 
-        self.assertEqual(exception_context.exception.replacement,
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
                          (3, "# See LICENCE.md for Copyright information\n"))
 
     def test_suggest_newline(self):
@@ -252,17 +275,19 @@ class TestCopyrightNotice(unittest.TestCase):
         A new line should be suggested as no Copyright notice was even inserted
         in the first place
         """
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for lack of Copyright notice"""
             run_linter_throw("path/to/file",
                              "# /path/to/file\n#\n# Other\n\n",
                              whitelist=["headerblock/copyright"])
 
-        replacement = "# Other\n# See LICENCE.md for Copyright information\n"
-        self.assertEqual(exception_context.exception.replacement,
-                         (3, replacement))
+        expected_repl = "# Other\n# See LICENCE.md for Copyright information\n"
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
+                         (3, expected_repl))
 
 
-class TestNewlineAsLastChar(unittest.TestCase):
+class TestNewlineAsLastChar(TestCase):
     """Test case for \n as last char of file"""
     def test_lint_pass(self):
         """Checks that file/newline_last_char passes
@@ -281,20 +306,19 @@ class TestNewlineAsLastChar(unittest.TestCase):
 
         Test fails where "\n" is not the last character in the file
         """
-        with self.assertRaises(LinterFailure):
+        with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "#\n#",
                              whitelist=["file/newline_last_char"])
 
     def test_suggest_newline(self):
         """Suggest a newline on the last line for file/newline_last_char"""
-        with self.assertRaises(LinterFailure) as exception_context:
+        def get_replacement():
+            """Get relacement for lack of trailing newline"""
             run_linter_throw("path/to/file",
                              "#\n# Text",
                              whitelist=["file/newline_last_char"])
 
-        self.assertEqual(exception_context.exception.replacement,
+        exception = self.assertRaises(LinterFailure, get_replacement)
+        self.assertEqual(replacement(exception),
                          (2, "# Text\n"))
-
-if __name__ == "__main__":
-    unittest.main()
