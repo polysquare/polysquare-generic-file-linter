@@ -21,7 +21,7 @@ setup(name="polysquare-generic-file-linter",
       license="MIT",
       keywords="development linters",
       packages=find_packages(exclude=["tests"]),
-      install_requres=["setuptools"],
+      install_requires=["setuptools"],
       extras_require={
           "test": ["coverage",
                    "testtools"]
