@@ -57,6 +57,7 @@ class TestFilenameHeaderWarnings(TestCase):
     def test_lint_pass(self):
         """Checks that headerblock/filename passes
 
+
         Test passes where /path/to/file is in the header on the first line
         """
         result = run_linter_throw("path/to/file",
@@ -64,8 +65,20 @@ class TestFilenameHeaderWarnings(TestCase):
                                   whitelist=["headerblock/filename"])
         self.assertTrue(result)
 
+    def test_ignore_shebangs(self):
+        """Checks that headerblock/filename passes, ignoring shebangs
+
+
+        Test passes where /path/to/file is in the header on the first line
+        """
+        result = run_linter_throw("path/to/file",
+                                  "#!/usr/bin/env bash\n# /path/to/file\n#\n",
+                                  whitelist=["headerblock/filename"])
+        self.assertTrue(result)
+
     def test_lint_fail_malformed(self):
         """Checks that headerblock/filename fails
+
 
         Test fails where /path/to/file is not in the header on the first line
         """
@@ -77,6 +90,7 @@ class TestFilenameHeaderWarnings(TestCase):
     def test_lint_fail_nocomment(self):
         """Checks that headerblock/filename fails
 
+
         Test fails where /path/to/file is not in the header on the first line
         """
         with ExpectedException(RuntimeError):
@@ -86,6 +100,7 @@ class TestFilenameHeaderWarnings(TestCase):
 
     def test_lint_fail_short(self):
         """Checks that headerblock/filename fails
+
 
         Test fails where there are no lines
         """
@@ -117,6 +132,18 @@ class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
         """
         result = run_linter_throw("path/to/file",
                                   "# /path/to/file\n#\n# Text",
+                                  whitelist=["headerblock/desc_space"])
+        self.assertTrue(result)
+
+    def test_ignore_shebangs(self):
+        """Checks that headerblock/desc_space passes, ignoring shebangs
+
+
+        Test passes where there is a single blank comment on the second line
+        """
+        result = run_linter_throw("path/to/file",
+                                  ("#!/usr/bin/env bash\n"
+                                   "# /path/to/file\n#\n# Text"),
                                   whitelist=["headerblock/desc_space"])
         self.assertTrue(result)
 
