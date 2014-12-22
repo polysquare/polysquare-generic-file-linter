@@ -29,21 +29,39 @@ def _comment_type_from_line(line):
 LinterFailure = namedtuple("LinterFailure", "description line replacement")
 
 
+def _line_is_shebang(line):
+    """Returns true if line is a shebang"""
+    regex = re.compile(r"^#!.*$")
+    if regex.match(line):
+        return True
+
+    return False
+
+
 def _filename_in_headerblock(relative_path, contents):
     """Check for a filename in a header block
 
     like such:
     # /path/to/filename
     """
-    if len(contents) < 1:
-        description = "Document cannot have less than one lines"
+
+    check_index = 0
+
+    if len(contents) > 0:
+        if _line_is_shebang(contents[0]):
+            check_index = 1
+
+    if len(contents) < check_index + 1:
+        description = ("Document cannot have less than "
+                       "{0} lines").format(check_index + 1)
         return LinterFailure(description, 1, replacement=None)
 
     regex = re.compile(r"^(\/\*|#|//) \/" + re.escape(relative_path) + "$")
-    if not regex.match(contents[0]):
+    if not regex.match(contents[check_index]):
         description = "The filename /{0} must be the first line of the header"
-        return LinterFailure(description.format(relative_path), 1,
-                             _comment_type_from_line(contents[0]) +
+        return LinterFailure(description.format(relative_path),
+                             check_index + 1,
+                             _comment_type_from_line(contents[check_index]) +
                              "/{0}\n".format(relative_path))
 
 
@@ -63,15 +81,24 @@ def _space_in_headerblock(relative_path, contents):
     """
     del relative_path
 
-    if len(contents) < 2:
-        description = "Document cannot have less than two lines"
+    check_index = 1
+
+    if len(contents) > 0:
+        if _line_is_shebang(contents[0]):
+            check_index = 2
+
+    if len(contents) < check_index + 1:
+        description = ("Document cannot have less "
+                       "than {0} lines").format(check_index + 1)
         return LinterFailure(description, 1, replacement=None)
 
-    if not _match_space_at_line(contents[1]):
+    candidate = contents[check_index]
+
+    if not _match_space_at_line(candidate):
         description = "The second line must be an empty comment"
-        return LinterFailure(description, 2,
-                             _comment_type_from_line(contents[1])[:-1] + "\n" +
-                             contents[1])
+        return LinterFailure(description, check_index + 1,
+                             _comment_type_from_line(candidate)[:-1] + "\n" +
+                             candidate)
 
 
 def _find_last_line_index(contents):
