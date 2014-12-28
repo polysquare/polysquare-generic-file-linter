@@ -3,20 +3,25 @@
 # Entry point for linter.
 #
 # See LICENCE.md for Copyright information
-""" Main module for linter """
+"""Main module for linter."""
 
 import argparse
-from collections import namedtuple
+
 import os
+
 import re
+
 import sys
+
+from collections import namedtuple
 
 
 def _comment_type_from_line(line):
-    """Returns the "comment header" (eg ' * ', '# ', '// ')
+    """Return the "comment header" (eg ' * ', '# ', '// ').
 
 
-    This header goes before the content of a start of the line in a replacement
+    This header goes before the content of a start of the
+    line in a replacement.
     """
     regex = re.compile(r"^( \*|#|//)")
     match = regex.match(line)
@@ -30,7 +35,7 @@ LinterFailure = namedtuple("LinterFailure", "description line replacement")
 
 
 def _line_is_shebang(line):
-    """Returns true if line is a shebang"""
+    """Return true if line is a shebang."""
     regex = re.compile(r"^#!.*$")
     if regex.match(line):
         return True
@@ -39,12 +44,11 @@ def _line_is_shebang(line):
 
 
 def _filename_in_headerblock(relative_path, contents):
-    """Check for a filename in a header block
+    """Check for a filename in a header block.
 
     like such:
     # /path/to/filename
     """
-
     check_index = 0
 
     if len(contents) > 0:
@@ -66,13 +70,13 @@ def _filename_in_headerblock(relative_path, contents):
 
 
 def _match_space_at_line(line):
-    """Returns an re.match object if an empty comment was found on this line"""
+    """Return a re.match object if an empty comment was found on line."""
     regex = re.compile(r"^( \*\/| \*|#|//)$")
     return regex.match(line)
 
 
 def _space_in_headerblock(relative_path, contents):
-    """Check for a space between the filename in a header block and description
+    """Check for space between the filename in a header block and description.
 
     like such:
     # /path/to/filename
@@ -102,7 +106,7 @@ def _space_in_headerblock(relative_path, contents):
 
 
 def _find_last_line_index(contents):
-    """Find the last line of the headerblock in contents"""
+    """Find the last line of the headerblock in contents."""
     lineno = 0
     headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
     while headerblock.match(contents[lineno]):
@@ -117,7 +121,7 @@ def _find_last_line_index(contents):
 
 
 def _space_before_copyright(relative_path, contents):
-    """Check for a space between the last line and description
+    """Check for a space between the last line and description.
 
     like such
     # Description
@@ -135,7 +139,7 @@ def _space_before_copyright(relative_path, contents):
 
 
 def _copyright_end_of_headerblock(relative_path, contents):
-    """Check for copyright notice at end of headerblock"""
+    """Check for copyright notice at end of headerblock."""
     del relative_path
 
     lineno = _find_last_line_index(contents)
@@ -163,7 +167,7 @@ def _copyright_end_of_headerblock(relative_path, contents):
 
 
 def _newline_end_of_file(relative_path, contents):
-    """Check that every file ends with a single \n"""
+    r"""Check that every file ends with a single \n."""
     del relative_path
     last_line = len(contents) - 1
     if not contents[last_line].endswith("\n"):
@@ -185,7 +189,7 @@ def lint(relative_path_to_file,
          contents,
          whitelist=None,
          blacklist=None):
-    """Actually lints some file contents.
+    r"""Actually lints some file contents.
 
     relative_path_to_file should
     contain the relative path to the file being linted from the root
@@ -193,20 +197,19 @@ def lint(relative_path_to_file,
     Set report to change the default reporter - by default nothing is
     reported.
     """
-
     contents_lines = contents.splitlines(True)
     linter_functions = LINTER_FUNCTIONS
 
     def _keyvalue_pair_if(dictionary, condition):
-        """Returns a key-value pair in dictionary if condition matched"""
+        """Return a key-value pair in dictionary if condition matched."""
         return {
             k: v for (k, v) in dictionary.items() if condition(k)
         }
 
     def _check_list(check_list, cond):
-        """A function that tests an object against a list if the list exists"""
+        """Return function testing against a list if the list exists."""
         def _check_against_list(key):
-            """Returns true if list exists and condition passes"""
+            """Return true if list exists and condition passes."""
             return cond(check_list, key) if check_list is not None else True
 
         return _check_against_list
@@ -228,9 +231,11 @@ def lint(relative_path_to_file,
 
 
 class ShowAvailableChecksAction(argparse.Action):
-    """If --checks is encountered, just show available checks and exit"""
+
+    """If --checks is encountered, just show available checks and exit."""
 
     def __call__(self, parser, namespace, values, option_string=None):
+        """Show available checks on --checks."""
         if option_string == "--checks":
             sys.stdout.write("Available option are:\n")
             for item in LINTER_FUNCTIONS.keys():
@@ -240,8 +245,7 @@ class ShowAvailableChecksAction(argparse.Action):
 
 
 def _parse_arguments():
-    """Returns a parser context result"""
-
+    """Return a parser context result."""
     parser = argparse.ArgumentParser(description="Lint for Polysquare "
                                      "style guide")
     parser.add_argument("--checks",
@@ -269,7 +273,7 @@ def _parse_arguments():
 
 
 def _report_lint_error(error, file_path):
-    """Report a linter error"""
+    """Report a linter error."""
     line = error[1].line
     code = error[0]
     description = error[1].description
@@ -280,7 +284,7 @@ def _report_lint_error(error, file_path):
 
 
 def _apply_replacement(error, found_file, file_lines):
-    """Apply a single replacement"""
+    """Apply a single replacement."""
     fixed_lines = file_lines
     fixed_lines[error[1].line - 1] = error[1].replacement
     concatenated_fixed_lines = "".join(fixed_lines)
@@ -292,7 +296,7 @@ def _apply_replacement(error, found_file, file_lines):
 
 
 def main():
-    """Entry point for the linter"""
+    """Entry point for the linter."""
     result = _parse_arguments()
 
     num_errors = 0
