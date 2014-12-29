@@ -10,6 +10,10 @@
 # See LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
+import os
+
+import tempfile
+
 from polysquarelinter import linter
 
 from testtools import (ExpectedException, TestCase)
@@ -44,6 +48,31 @@ def run_linter_throw(relative_path, contents, whitelist=None, blacklist=None):
                             (errors[0][1].line, errors[0][1].replacement))
 
     return True
+
+
+def run_linter_main(filename, **kwargs):
+    """Run linter.main() (as an integration test)."""
+    arguments = [filename]
+
+    def _convert_kv_to_switches(key, value):
+        """Convert a key-value pair to command-line switches."""
+        append_args = ["--{0}".format(key).replace("_", "-")]
+
+        type_dispatch = {
+            bool: [],
+            list: value,
+            str: [value]
+        }
+
+        # We assume that the types in type_dispatch are the only types
+        # we'll encounter, all others will throw an exception.
+        append_args += type_dispatch[type(value)]
+        return append_args
+
+    for key, value in kwargs.items():
+        arguments += _convert_kv_to_switches(key, value)
+
+    return linter.main(arguments)
 
 
 # Needed to silence pychecker warning - pychecker doesn't detect
@@ -346,3 +375,80 @@ class TestNewlineAsLastChar(TestCase):
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
                          (2, "# Text\n"))
+
+
+class TestLinterAcceptance(TestCase):
+
+    """Acceptance tests for linter.main()."""
+
+    def __init__(self, *args, **kwargs):
+        """"Initialize class variables."""
+        cls = TestLinterAcceptance
+        super(cls, self).__init__(*args,  # pylint:disable=R0903
+                                  **kwargs)
+        self._temporary_file = None
+
+    def setUp(self):  # NOQA
+        """Create a temporary file."""
+        super(TestLinterAcceptance, self).setUp()
+        self._temporary_file = tempfile.mkstemp()
+
+    def tearDown(self):  # NOQA
+        """Remove temporary file."""
+        os.remove(self._temporary_file[1])
+        super(TestLinterAcceptance, self).tearDown()
+
+    def test_blacklist(self):
+        """Check that blacklisting a test causes it not to run."""
+        contents = ("#\n"
+                    "#\n"
+                    "# Description\n"
+                    "#\n"
+                    "# See LICENCE.md for Copyright information\n"
+                    "\n")
+
+        with os.fdopen(self._temporary_file[0], "a+") as process_file:
+            process_file.write(contents)
+
+        result = run_linter_main(self._temporary_file[1],
+                                 blacklist=["headerblock/filename"])
+
+        self.assertEqual(result, 0)
+
+    def test_whitelist_pass(self):
+        """Check that whitelisting a test causes only it to run."""
+        contents = ("#\n")
+
+        with os.fdopen(self._temporary_file[0], "a+") as process_file:
+            process_file.write(contents)
+
+        result = run_linter_main(self._temporary_file[1],
+                                 whitelist=["file/newline_last_char"])
+
+        self.assertEqual(result, 0)
+
+    def test_whitelist_fail(self):
+        """Check that whitelisting a test causes only it to run."""
+        contents = ("#")
+
+        with os.fdopen(self._temporary_file[0], "a+") as process_file:
+            process_file.write(contents)
+
+        result = run_linter_main(self._temporary_file[1],
+                                 whitelist=["file/newline_last_char"])
+
+        self.assertEqual(result, 1)
+
+    def test_fix_what_you_can(self):
+        """Check that --fix-what-you-can modifies file correctly."""
+        contents = ("#")
+
+        with os.fdopen(self._temporary_file[0], "a+") as process_file:
+            process_file.write(contents)
+
+        run_linter_main(self._temporary_file[1],
+                        whitelist=["file/newline_last_char"],
+                        fix_what_you_can=True)
+
+        with open(self._temporary_file[1], "r") as processed_file:
+            self.assertEqual("#\n", processed_file.read())
