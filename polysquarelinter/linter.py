@@ -230,7 +230,7 @@ def lint(relative_path_to_file,
     return linter_errors
 
 
-class ShowAvailableChecksAction(argparse.Action):
+class ShowAvailableChecksAction(argparse.Action):  # pylint:disable=R0903
 
     """If --checks is encountered, just show available checks and exit."""
 
