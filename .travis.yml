@@ -14,6 +14,7 @@ install:
 - wget public-travis-scripts.polysquare.org/python-coverage.sh
 - wget public-travis-scripts.polysquare.org/project-lint.sh
 - wget public-travis-scripts.polysquare.org/setup-lang.sh
+- wget public-travis-scripts.polysquare.org/prepare-lang-cache.sh
 - source setup-lang.sh -l haskell -p ~/virtualenv/haskell
 - bash python-install.sh -p
 script:
@@ -21,6 +22,7 @@ script:
 - bash project-lint.sh -d . -e py
 - bash python-lint.sh -m polysquarelinter
 - bash python-tests.sh -m polysquarelinter
+- bash prepare-lang-cache.sh -p ~/virtualenv/haskell -l haskell
 after_success:
 - bash python-coverage.sh
 deploy:
