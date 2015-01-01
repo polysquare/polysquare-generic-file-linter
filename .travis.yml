@@ -8,23 +8,14 @@ python:
 - '3.3'
 - pypy
 install:
-- wget public-travis-scripts.polysquare.org/python-install.sh
-- wget public-travis-scripts.polysquare.org/python-lint.sh
-- wget public-travis-scripts.polysquare.org/python-tests.sh
-- wget public-travis-scripts.polysquare.org/python-coverage.sh
-- wget public-travis-scripts.polysquare.org/project-lint.sh
-- wget public-travis-scripts.polysquare.org/setup-lang.sh
-- wget public-travis-scripts.polysquare.org/prepare-lang-cache.sh
-- source setup-lang.sh -l haskell -p ~/virtualenv/haskell
-- bash python-install.sh -p
+- curl -L public-travis-scripts.polysquare.org/python-setup-with-doc.sh | bash
 script:
-- echo "${TRAVIS_PYTHON_VERSION}"
-- bash project-lint.sh -d . -e py
-- bash python-lint.sh -m polysquarelinter
-- bash python-tests.sh -m polysquarelinter
-- bash prepare-lang-cache.sh -p ~/virtualenv/haskell -l haskell
+- export MODULE=polysquarelinter
+- curl -L public-travis-scripts.polysquare.org/python-test-module.sh | bash
 after_success:
-- bash python-coverage.sh
+- curl -L public-travis-scripts.polysquare.org/python-coverage.sh | bash
+before_deploy:
+- source python-prepare-doc-deploy.sh
 deploy:
   provider: pypi
   user:
