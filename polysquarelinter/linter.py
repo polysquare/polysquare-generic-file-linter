@@ -17,18 +17,31 @@ from collections import namedtuple
 
 
 def _comment_type_from_line(line):
-    """Return the "comment header" (eg ' * ', '# ', '// ').
-
+    """Return the "comment header" (eg ' * ', '# ', '// ', '/* ').
 
     This header goes before the content of a start of the
     line in a replacement.
     """
-    regex = re.compile(r"^( \*|#|//)")
+    regex = re.compile(r"^(/\*| \*|#|//)")
     match = regex.match(line)
     if match:
         return "{0} ".format(line[match.start():match.end()])
 
     raise RuntimeError("Unable to find comment header for {0}".format(line))
+
+
+def _end_comment_type_from_line(line):
+    """Return the "comment footer" (eg ' */'').
+
+    This header goes after the content of a start of the
+    line in a replacement that would be at the end of a header block.
+    """
+    regex = re.compile(r"^(/\*| \*)")
+    match = regex.match(line)
+    if match:
+        return " */"
+
+    return ""
 
 
 LinterFailure = namedtuple("LinterFailure", "description line replacement")
@@ -150,16 +163,19 @@ def _copyright_end_of_headerblock(relative_path, contents):
                       "following notice: {0}"
         replacement = None
         comment = _comment_type_from_line(contents[lineno])
+        comment_footer = _end_comment_type_from_line(contents[lineno])
         # If the last line has the words "Copyright" or "LICENCE.md" the
         # user probably attempted to add a notice, but failed, so just
         # suggest replacing the whole line
         if re.compile(r"^.*(Copyright|LICENCE.md).*$").match(contents[lineno]):
-            replacement = "{0}{1}\n".format(comment, notice)
+            replacement = "{0}{1}\n".format(comment, notice + comment_footer)
         # Put the copyright notice on a new line
         else:
-            replacement = "{0}{1}{2}\n".format(contents[lineno],
-                                               comment,
-                                               notice)
+            # Strip off the footer and the \n at the end of the line.
+            repl_contents = contents[lineno][:-(len(comment_footer) + 1)]
+            replacement = "{0}\n{1}{2}\n".format(repl_contents,
+                                                 comment,
+                                                 notice + comment_footer)
 
         return LinterFailure(description.format(notice),
                              lineno + 1,

@@ -14,6 +14,10 @@ import os
 
 import tempfile
 
+from collections import namedtuple
+
+from nose_parameterized import parameterized
+
 from polysquarelinter import linter
 
 from testtools import (ExpectedException, TestCase)
@@ -33,11 +37,26 @@ class LinterFailure(Exception):
         """Represent as string."""
         return str("{0}".format(self.message))
 
+FormatStyle = namedtuple("FormatStyle", "start mid end")
+_KNOWN_STYLES = [
+    (FormatStyle(start="#", mid="#", end=""), None),
+    (FormatStyle(start="/*", mid=" *", end=" */"), None)
+]
 
-def run_linter_throw(relative_path, contents, whitelist=None, blacklist=None):
+
+def style_format(script, style):
+    """Format script for style, replace keys in script with comments."""
+    return script.format(s=style.start, m=style.mid, e=style.end)
+
+
+def run_linter_throw(relative_path,
+                     contents,
+                     style,
+                     whitelist=None,
+                     blacklist=None):
     """Run linter.lint and throws if it reports a message."""
     errors = linter.lint(relative_path,
-                         contents,
+                         style_format(contents, style),
                          whitelist=whitelist,
                          blacklist=blacklist)
 
@@ -89,37 +108,45 @@ class TestFilenameHeaderWarnings(TestCase):
 
     """Test case for filenames being at the top of a header."""
 
-    def test_lint_pass(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_pass(self, style, _):
         """Check that headerblock/filename passes.
 
         Test passes where /path/to/file is in the header on the first line
         """
         result = run_linter_throw("path/to/file",
-                                  "# /path/to/file\n#\n",
+                                  "{s} /path/to/file\n{m}{e}\n",
+                                  style,
                                   whitelist=["headerblock/filename"])
         self.assertTrue(result)
 
-    def test_ignore_shebangs(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_ignore_shebangs(self, style, _):
         """Check that headerblock/filename passes, ignoring shebangs.
 
         Test passes where /path/to/file is in the header on the first line
         """
         result = run_linter_throw("path/to/file",
-                                  "#!/usr/bin/env bash\n# /path/to/file\n#\n",
+                                  "#!/usr/bin/env bash\n"
+                                  "{s} /path/to/file\n{m}{e}\n",
+                                  style,
                                   whitelist=["headerblock/filename"])
         self.assertTrue(result)
 
-    def test_lint_fail_malformed(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_malformed(self, style, _):
         """Check that headerblock/filename fails.
 
         Test fails where /path/to/file is not in the header on the first line
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "# path/to/file_wrong\n#\n",
+                             "{s} path/to/file_wrong\n{m}{e}\n",
+                             style,
                              whitelist=["headerblock/filename"])
 
-    def test_lint_fail_nocomment(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_nocomment(self, style, _):
         """Check that headerblock/filename fails.
 
         Test fails where /path/to/file is not in the header on the first line
@@ -127,9 +154,11 @@ class TestFilenameHeaderWarnings(TestCase):
         with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "aabb\nbbcc",
+                             style,
                              whitelist=["headerblock/filename"])
 
-    def test_lint_fail_short(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_short(self, style, _):
         """Check that headerblock/filename fails.
 
         Test fails where there are no lines
@@ -137,95 +166,111 @@ class TestFilenameHeaderWarnings(TestCase):
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
                              "",
+                             style,
                              whitelist=["headerblock/filename"])
 
-    def test_suggest_filename(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_filename(self, style, _):
         """Suggest the filename on headerblock/filename failure."""
         def get_replacement():
             """Get relacement for first line of headerblock."""
             run_linter_throw("path/to/file",
-                             "#\n# Text",
+                             "{s}\n{m} Text{e}",
+                             style,
                              whitelist=["headerblock/filename"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (1, "# /path/to/file\n"))
+                         (1, style_format("{s} /path/to/file\n", style)))
 
 
 class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
 
     """Test case for a single blank comment between top and body of header."""
 
-    def test_lint_pass(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_pass(self, style, _):
         """Check that headerblock/desc_space passes.
 
         Test passes where there is a single blank comment on the second line
         """
         result = run_linter_throw("path/to/file",
-                                  "# /path/to/file\n#\n# Text",
+                                  "{s} /path/to/file\n{m}\n{m} Text{e}",
+                                  style,
                                   whitelist=["headerblock/desc_space"])
         self.assertTrue(result)
 
-    def test_ignore_shebangs(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_ignore_shebangs(self, style, _):
         """Check that headerblock/desc_space passes, ignoring shebangs.
 
         Test passes where there is a single blank comment on the second line
         """
         result = run_linter_throw("path/to/file",
-                                  ("#!/usr/bin/env bash\n"
-                                   "# /path/to/file\n#\n# Text"),
+                                  "#!/usr/bin/env bash\n"
+                                  "{s} /path/to/file\n{m}\n{m} Text{e}",
+                                  style,
                                   whitelist=["headerblock/desc_space"])
         self.assertTrue(result)
 
-    def test_lint_fail_malformed(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_malformed(self, style, _):
         """Check that headerblock/desc_space fails.
 
         Test fail where there is not a single blank comment on the second line
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "#\n# Text",
+                             "{s}\n{m} Text{e}",
+                             style,
                              whitelist=["headerblock/desc_space"])
 
-    def test_lint_fail_short(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_short(self, style, _):
         """Check that headerblock/desc_space fails.
 
         Test fail where there are not even two lines
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "#\n",
+                             "{s}{e}\n",
+                             style,
                              whitelist=["headerblock/desc_space"])
 
-    def test_suggest_insert_break(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_insert_break(self, style, _):
         """Suggest a blank comment line on headerblock/desc_space failure."""
         def get_replacement():
             """Get relacement for lack of break."""
             run_linter_throw("path/to/file",
-                             "#\n# Text",
+                             "{s}\n{m} Text{e}",
+                             style,
                              whitelist=["headerblock/desc_space"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (2, "#\n# Text"))
+                         (2, style_format("{m}\n{m} Text{e}", style)))
 
 
 class TestSpaceDescAndCopyrightWarnings(TestCase):
 
     """Test case for a single blank comment between bottom and body."""
 
-    def test_lint_pass(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_pass(self, style, _):
         """Check that headerblock/space_copyright passes.
 
         Test passes where there is a single blank comment on the second
         last line
         """
         result = run_linter_throw("path/to/file",
-                                  "# /path/to/file\n#\n# Text\n\n",
+                                  "{s} /path/to/file\n{m}\n{m} Text\n\n",
+                                  style,
                                   whitelist=["headerblock/space_copyright"])
         self.assertTrue(result)
 
-    def test_lint_fail(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail(self, style, _):
         """Check that headerblock/desc_space_copyright fails.
 
 
@@ -234,60 +279,55 @@ class TestSpaceDescAndCopyrightWarnings(TestCase):
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "# Text\n# Text\n # Text\n\n",
+                             "{s} Text\n{m} Text\n {m} Text\n{e}\n",
+                             style,
                              whitelist=["headerblock/space_copyright"])
 
-    def test_lint_fail_no_headerblock(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_no_headerblock(self, style, _):
         """RuntimeError where file does not have headerblock."""
         with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "\n",
+                             style,
                              whitelist=["headerblock/space_copyright"])
 
-    def test_suggest_insert_break(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_insert_break(self, style, _):
         """Suggest a blank comment line for headerblock/space_copyright."""
         def get_replacement():
             """Get relacement for lack of break."""
             run_linter_throw("path/to/file",
-                             "# Text\n# Text\n# Text\n\n",
+                             "{s} Text\n{m} Text\n{m} Text{e}\n\n",
+                             style,
                              whitelist=["headerblock/space_copyright"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (3, "#\n# Text\n"))
+                         (3, style_format("{m}\n{m} Text{e}\n", style)))
 
 
 class TestCopyrightNotice(TestCase):
 
     """Test case for Copyright notice at end of header block."""
 
-    def test_lint_pass(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_pass(self, style, _):
         """Check that headerblock/copyright passes.
 
         Test passes where "See LICENCE.md for Copyright information" appears
         at the end of the header block
         """
         result = run_linter_throw("path/to/file",
-                                  "# /path/to/file\n#\n# "
+                                  "{s} /path/to/file\n{m}\n{m} "
                                   "See LICENCE.md for Copyright "
-                                  "information\n\n",
+                                  "information{e}\n\n",
+                                  style,
                                   whitelist=["headerblock/copyright"])
         self.assertTrue(result)
 
-    def test_lint_pass_c89(self):
-        """Check that headerblock/copyright passes for C89 style comments.
-
-        Test passes where "See LICENCE.md for Copyright information" appears
-        at the end of the header block (along with */)
-        """
-        result = run_linter_throw("path/to/file",
-                                  "/* /path/to/file\n *\n * "
-                                  "See LICENCE.md for Copyright "
-                                  "information */\n\n",
-                                  whitelist=["headerblock/copyright"])
-        self.assertTrue(result)
-
-    def test_lint_fail(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail(self, style, _):
         """Check that headerblock/copyright fails.
 
         Test fails where "See LICENCE.md for Copyright information" does not
@@ -295,17 +335,22 @@ class TestCopyrightNotice(TestCase):
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "# /path/to/file\n#\n# No Copyright Notice\n\n",
+                             "{s} /path/to/file\n"
+                             "{m}\n{m} No Copyright Notice{e}\n\n",
+                             style,
                              whitelist=["headerblock/copyright"])
 
-    def test_lint_fail_no_end(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail_no_end(self, style, _):
         """headerblock/copyright fails where headerblock has no ending."""
         with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
-                             "# /path/to/file\n#\n#",
+                             "{s} /path/to/file\n{m}\n{m}{e}",
+                             style,
                              whitelist=["headerblock/copyright"])
 
-    def test_suggest_replacement(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_replacement(self, style, _):
         """Check a replacement is suggested if line has LICENCE or Copyright.
 
         The entire line should be replaced where it has LICENCE or Copyright
@@ -315,14 +360,18 @@ class TestCopyrightNotice(TestCase):
         def get_replacement():
             """Get relacement for partial Copyright notice."""
             run_linter_throw("path/to/file",
-                             "# /path/to/file\n#\n# No Copyright Notice\n\n",
+                             "{s} /path/to/file\n"
+                             "{m}\n{m} No Copyright Notice{e}\n\n",
+                             style,
                              whitelist=["headerblock/copyright"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (3, "# See LICENCE.md for Copyright information\n"))
+                         (3, style_format("{m} See LICENCE.md for Copyright "
+                                          "information{e}\n", style)))
 
-    def test_suggest_newline(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_newline(self, style, _):
         """Check a new line is suggested where line has no notice.
 
         A new line should be suggested as no Copyright notice was even inserted
@@ -331,50 +380,58 @@ class TestCopyrightNotice(TestCase):
         def get_replacement():
             """Get relacement for lack of Copyright notice."""
             run_linter_throw("path/to/file",
-                             "# /path/to/file\n#\n# Other\n\n",
+                             "{s} /path/to/file\n{m}\n{m} Other{e}\n\n",
+                             style,
                              whitelist=["headerblock/copyright"])
 
-        expected_repl = "# Other\n# See LICENCE.md for Copyright information\n"
+        expected_repl = ("{m} Other\n"
+                         "{m} See LICENCE.md for Copyright information{e}\n")
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (3, expected_repl))
+                         (3, style_format(expected_repl, style)))
 
 
 class TestNewlineAsLastChar(TestCase):
 
     r"""Test case for \n as last char of file."""
 
-    def test_lint_pass(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_pass(self, style, _):
         r"""Check that file/newline_last_char passes.
 
         Test passes where "\n" is the last character in the file
         """
         result = run_linter_throw("path/to/file",
-                                  "#\n#\n",
+                                  "{s}\n{m}{e}\n",
+                                  style,
                                   whitelist=["file/newline_last_char"])
         self.assertTrue(result)
 
-    def test_lint_fail(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_lint_fail(self, style, _):
         r"""Check that file/newline_last_char false.
 
         Test fails where "\n" is not the last character in the file
         """
         with ExpectedException(LinterFailure):
             run_linter_throw("path/to/file",
-                             "#\n#",
+                             "{s}\n{m}{e}",
+                             style,
                              whitelist=["file/newline_last_char"])
 
-    def test_suggest_newline(self):
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_suggest_newline(self, style, _):
         """Suggest a newline on the last line for file/newline_last_char."""
         def get_replacement():
             """Get relacement for lack of trailing newline."""
             run_linter_throw("path/to/file",
-                             "#\n# Text",
+                             "{s}\n{m} Text{e}",
+                             style,
                              whitelist=["file/newline_last_char"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
-                         (2, "# Text\n"))
+                         (2, style_format("{m} Text{e}\n", style)))
 
 
 class TestLinterAcceptance(TestCase):
