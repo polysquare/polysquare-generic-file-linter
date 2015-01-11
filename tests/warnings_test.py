@@ -40,6 +40,8 @@ class LinterFailure(Exception):
 FormatStyle = namedtuple("FormatStyle", "start mid end")
 _KNOWN_STYLES = [
     (FormatStyle(start="#", mid="#", end=""), None),
+    (FormatStyle(start="rem", mid="rem", end=""), None),
+    (FormatStyle(start="//", mid="//", end=""), None),
     (FormatStyle(start="/*", mid=" *", end=" */"), None)
 ]
 

@@ -15,14 +15,19 @@ import sys
 
 from collections import namedtuple
 
+_ALL_COMMENT = r"(/\*| \*\/| \*|#|//|rem)"
+_HDR_COMMENT = r"(/\*|#|//|rem)"
+_MDL_COMMENT = r"( \*\/| \*|#|//|rem)"
+_FTR_COMMENT = r"(/\*| \*)"
+
 
 def _comment_type_from_line(line):
-    """Return the "comment header" (eg ' * ', '# ', '// ', '/* ').
+    """Return the "comment header" (eg ' * ', '# ', 'rem ', '// ', '/* ').
 
     This header goes before the content of a start of the
     line in a replacement.
     """
-    regex = re.compile(r"^(/\*| \*|#|//)")
+    regex = re.compile(r"^{0}".format(_ALL_COMMENT))
     match = regex.match(line)
     if match:
         return "{0} ".format(line[match.start():match.end()])
@@ -36,7 +41,7 @@ def _end_comment_type_from_line(line):
     This header goes after the content of a start of the
     line in a replacement that would be at the end of a header block.
     """
-    regex = re.compile(r"^(/\*| \*)")
+    regex = re.compile(r"^{0}".format(_FTR_COMMENT))
     match = regex.match(line)
     if match:
         return " */"
@@ -73,7 +78,8 @@ def _filename_in_headerblock(relative_path, contents):
                        "{0} lines").format(check_index + 1)
         return LinterFailure(description, 1, replacement=None)
 
-    regex = re.compile(r"^(\/\*|#|//) \/" + re.escape(relative_path) + "$")
+    regex = re.compile(r"^{0} \/".format(_HDR_COMMENT) +
+                       re.escape(relative_path) + "$")
     if not regex.match(contents[check_index]):
         description = "The filename /{0} must be the first line of the header"
         return LinterFailure(description.format(relative_path),
@@ -84,7 +90,7 @@ def _filename_in_headerblock(relative_path, contents):
 
 def _match_space_at_line(line):
     """Return a re.match object if an empty comment was found on line."""
-    regex = re.compile(r"^( \*\/| \*|#|//)$")
+    regex = re.compile(r"^{0}$".format(_MDL_COMMENT))
     return regex.match(line)
 
 
@@ -121,7 +127,7 @@ def _space_in_headerblock(relative_path, contents):
 def _find_last_line_index(contents):
     """Find the last line of the headerblock in contents."""
     lineno = 0
-    headerblock = re.compile(r"^(\/\*| \*|#|//).*$")
+    headerblock = re.compile(r"^{0}.*$".format(_ALL_COMMENT))
     while headerblock.match(contents[lineno]):
         if lineno + 1 == len(contents):
             raise RuntimeError("No end of headerblock in file")
@@ -157,7 +163,7 @@ def _copyright_end_of_headerblock(relative_path, contents):
 
     lineno = _find_last_line_index(contents)
     notice = "See LICENCE.md for Copyright information"
-    regex = re.compile(r"^( \*|#|//) {0}( .*$|$)".format(notice))
+    regex = re.compile(r"^{0} {1}( .*$|$)".format(_MDL_COMMENT, notice))
     if not regex.match(contents[lineno]):
         description = "The last of the header block line must have the "\
                       "following notice: {0}"
