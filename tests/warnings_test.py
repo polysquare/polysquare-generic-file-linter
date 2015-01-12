@@ -136,6 +136,19 @@ class TestFilenameHeaderWarnings(TestCase):
         self.assertTrue(result)
 
     @parameterized.expand(_KNOWN_STYLES)
+    def test_ignore_at_echo(self, style, _):
+        """Check that headerblock/filename passes, ignoring @echo off.
+
+        Test passes where /path/to/file is in the header on the first line
+        """
+        result = run_linter_throw("path/to/file",
+                                  "@echo off\n"
+                                  "{s} /path/to/file\n{m}{e}\n",
+                                  style,
+                                  whitelist=["headerblock/filename"])
+        self.assertTrue(result)
+
+    @parameterized.expand(_KNOWN_STYLES)
     def test_lint_fail_malformed(self, style, _):
         """Check that headerblock/filename fails.
 
@@ -210,6 +223,19 @@ class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
         """
         result = run_linter_throw("path/to/file",
                                   "#!/usr/bin/env bash\n"
+                                  "{s} /path/to/file\n{m}\n{m} Text{e}",
+                                  style,
+                                  whitelist=["headerblock/desc_space"])
+        self.assertTrue(result)
+
+    @parameterized.expand(_KNOWN_STYLES)
+    def test_ignore_at_echo(self, style, _):
+        """Check that headerblock/desc_space passes, ignoring @echo off.
+
+        Test passes where there is a single blank comment on the second line
+        """
+        result = run_linter_throw("path/to/file",
+                                  "@echo off\n"
                                   "{s} /path/to/file\n{m}\n{m} Text{e}",
                                   style,
                                   whitelist=["headerblock/desc_space"])

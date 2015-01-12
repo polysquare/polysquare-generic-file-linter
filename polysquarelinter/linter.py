@@ -54,7 +54,7 @@ LinterFailure = namedtuple("LinterFailure", "description line replacement")
 
 def _line_is_shebang(line):
     """Return true if line is a shebang."""
-    regex = re.compile(r"^#!.*$")
+    regex = re.compile(r"^(#!|@echo off).*$")
     if regex.match(line):
         return True
 
