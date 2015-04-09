@@ -2,7 +2,7 @@
 #
 # Installation and setup script for polysquare-generic-file-linter
 #
-# See LICENCE.md for Copyright information
+# See /LICENCE.md for Copyright information
 """Installation and setup script for polysquare-generic-file-linter."""
 
 from setuptools import find_packages
@@ -29,16 +29,23 @@ setup(name="polysquare-generic-file-linter",
       license="MIT",
       keywords="development linters",
       packages=find_packages(exclude=["tests"]),
-      install_requires=["setuptools"],
+      package_data={
+          "polysquarelinter": [
+              "polysquarelinter/en_US.txt"
+          ]
+      },
+      install_requires=["whoosh"],
       extras_require={
           "test": ["coverage",
+                   "capture",
                    "nose",
                    "nose-parameterized",
                    "testtools"]
       },
       entry_points={
           "console_scripts": [
-              "polysquare-generic-file-linter=polysquarelinter.linter:main"
+              "polysquare-generic-file-linter=polysquarelinter.linter:main",
+              "spellcheck-linter=polysquarelinter.lint_spelling_only:main"
           ]
       },
       test_suite="nose.collector",
