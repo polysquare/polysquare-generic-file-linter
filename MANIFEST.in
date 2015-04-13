@@ -1,2 +1,4 @@
+include DICTIONARY
 include README.md
 include LICENCE.md
+include polysquarelinter/en_US.txt
