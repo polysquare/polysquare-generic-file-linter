@@ -474,7 +474,7 @@ def _parse_arguments(arguments=None):
                         nargs="*",
                         metavar=("FILE"),
                         help="""read FILE""",
-                        type=argparse.FileType("r+"))
+                        type=str)
     parser.add_argument("--whitelist",
                         nargs="*",
                         help="""list of checks that should only be run""",
@@ -540,29 +540,31 @@ def main(arguments=None):
     result = _parse_arguments(arguments)
 
     num_errors = 0
-    for found_file in result.files:
-        file_path = os.path.abspath(found_file.name)
-        file_contents = found_file.read()
-        file_lines = file_contents.splitlines(True)
-        try:
-            errors = lint(file_path[len(os.getcwd()) + 1:],
-                          file_contents,
-                          result.whitelist,
-                          result.blacklist,
-                          **(dict(_get_tool_options(result))))
-        except RuntimeError as err:
-            msg = """RuntimeError in processing {0} - {1}""".format(file_path,
-                                                                    str(err))
-            raise RuntimeError(msg)
-        for error in errors:
-            _report_lint_error(error, file_path)
-            if result.fix_what_you_can and error[1].replacement is not None:
-                _apply_replacement(error, found_file, file_lines)
-                sys.stdout.write(""" ... FIXED\n""")
-                break
+    for found_filename in result.files:
+        file_path = os.path.abspath(found_filename)
+        with open(file_path, "r+") as found_file:
+            file_contents = found_file.read()
+            file_lines = file_contents.splitlines(True)
+            try:
+                errors = lint(file_path[len(os.getcwd()) + 1:],
+                              file_contents,
+                              result.whitelist,
+                              result.blacklist,
+                              **(dict(_get_tool_options(result))))
+            except RuntimeError as err:
+                msg = ("""RuntimeError in processing """
+                       """{0} - {1}""".format(file_path, str(err)))
+                raise RuntimeError(msg)
+            for error in errors:
+                _report_lint_error(error, file_path)
+                if (result.fix_what_you_can and
+                        error[1].replacement is not None):
+                    _apply_replacement(error, found_file, file_lines)
+                    sys.stdout.write(""" ... FIXED\n""")
+                    break
 
-            sys.stdout.write("\n")
+                sys.stdout.write("\n")
 
-        num_errors += len(errors)
+            num_errors += len(errors)
 
     return num_errors

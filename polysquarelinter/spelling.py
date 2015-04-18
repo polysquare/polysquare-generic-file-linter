@@ -53,6 +53,9 @@ _valid_words_cache = dict()
 
 def clear_caches():
     """Clear all caches."""
+    for _, reader in _spellchecker_cache.values():
+        reader.close()
+
     _spellchecker_cache.clear()
     _valid_words_cache.clear()
 
@@ -325,6 +328,11 @@ def valid_words_set(path_to_user_dictionary=None,
         return words
 
 
+# Store the corrector and reader in the cache
+SpellcheckerCacheEntry = namedtuple("SpellcheckerCacheEntry",
+                                    "corrector reader")
+
+
 def _spellchecker_for(word_set,
                       name,
                       spellcheck_cache_path=None,
@@ -341,7 +349,7 @@ def _spellchecker_for(word_set,
     graph gets repopulated.
     """
     try:
-        return _spellchecker_cache[name]
+        return _spellchecker_cache[name].corrector
     except KeyError:
         pass
 
@@ -387,8 +395,9 @@ def _spellchecker_for(word_set,
         spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
         word_graph = graph_storage.open_file(name)
 
-    corrector = spelling.GraphCorrector(fst.GraphReader(word_graph))
-    _spellchecker_cache[name] = corrector
+    reader = fst.GraphReader(word_graph)
+    corrector = spelling.GraphCorrector(reader)
+    _spellchecker_cache[name] = SpellcheckerCacheEntry(corrector, reader)
     return corrector
 
 

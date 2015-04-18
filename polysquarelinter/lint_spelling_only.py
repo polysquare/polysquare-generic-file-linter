@@ -14,6 +14,7 @@ import sys
 from polysquarelinter import spelling
 from polysquarelinter.spelling import Dictionary, spellcheck_region
 
+
 def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     """Run spellcheck on the contents of a file.
 
@@ -43,7 +44,8 @@ def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     technical_terms_set = user_words
 
     if technical_terms:
-        technical_terms_set |= set(open(technical_terms).read().splitlines())
+        with open(technical_terms) as tech_tf:
+            technical_terms_set |= set(tech_tf.read().splitlines())
 
     technical_words = Dictionary(technical_terms_set,
                                  "technical_words",
@@ -64,7 +66,7 @@ def _parse_arguments(arguments=None):
                         nargs="*",
                         metavar=("FILE"),
                         help="""read FILE""",
-                        type=argparse.FileType("r+"))
+                        type=str)
     parser.add_argument("--spellcheck-cache",
                         help="""path to spell-checking cache file""",
                         default=None)
@@ -103,15 +105,16 @@ def main(arguments=None):
     result = _parse_arguments(arguments)
 
     num_errors = 0
-    for found_file in result.files:
-        file_path = os.path.abspath(found_file.name)
-        errors = spellcheck(found_file.read(),
-                            result.technical_terms,
-                            result.spellcheck_cache)
+    for found_filename in result.files:
+        file_path = os.path.abspath(found_filename)
+        with open(file_path, "r+") as found_file:
+            errors = spellcheck(found_file.read(),
+                                result.technical_terms,
+                                result.spellcheck_cache)
 
-        for error in errors:
-            _report_spelling_error(error, file_path)
+            for error in errors:
+                _report_spelling_error(error, file_path)
 
-        num_errors += len(errors)
+            num_errors += len(errors)
 
     return num_errors
