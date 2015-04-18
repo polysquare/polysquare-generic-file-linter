@@ -14,11 +14,11 @@ import os
 
 import shutil
 
+import sys
+
 import tempfile
 
 import doctest
-
-import capture
 
 from polysquarelinter import lint_spelling_only
 
@@ -26,9 +26,54 @@ from testtools import TestCase
 from testtools.matchers import DocTestMatches
 
 
+class CapturedOutput(object):  # suppress(too-few-public-methods)
+
+    """Represents the captured contents of stdout and stderr."""
+
+    def __init__(self):
+        """Initialize the class."""
+        super(CapturedOutput, self).__init__()
+        self.stdout = ""
+        self.stderr = ""
+
+        self._stdout_handle = None
+        self._stderr_handle = None
+
+    def __enter__(self):
+        """Start capturing output."""
+        from six import StringIO
+
+        self._stdout_handle = sys.stdout
+        self._stderr_handle = sys.stderr
+
+        sys.stdout = StringIO()
+        sys.stderr = StringIO()
+
+        return self
+
+    def __exit__(self, exc_type, value, traceback):
+        """Finish capturing output."""
+        del exc_type
+        del value
+        del traceback
+
+        sys.stdout.seek(0)
+        self.stdout = sys.stdout.read()
+
+        sys.stderr.seek(0)
+        self.stderr = sys.stderr.read()
+
+        sys.stdout = self._stdout_handle
+        self._stdout_handle = None
+
+        sys.stderr = self._stderr_handle
+        self._stderr_handle = None
+
+
 def run_with_kwargs_as_switches(func, *args, **kwargs):
     """Run :func: with :kwargs: converted to switches."""
     arguments = list(args)
+
     def _convert_kv_to_switches(key, value):
         """Convert a key-value pair to command-line switches."""
         append_args = ["--{0}".format(key).replace("_", "-")]
@@ -131,10 +176,10 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with open(self._temporary_file, "w") as f:
             f.write("splelling error\n")
 
-        with capture.stdout as captured:
+        with CapturedOutput() as captured:
             self._run_with_cache(self._temporary_file)
 
-        self.assertThat(str(captured),
+        self.assertThat(captured.stdout,
                         DocTestMatches("""... [file/spelling_error] ...""",
                                        doctest.ELLIPSIS |
                                        doctest.NORMALIZE_WHITESPACE |
@@ -145,11 +190,11 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with open(self._temporary_file, "w") as f:
             f.write("technical_looking_word\n")
 
-        with capture.stdout as captured:
+        with CapturedOutput() as captured:
             self._run_with_cache(self._temporary_file,
                                  technical_terms=self._tech_words_file)
 
-        self.assertThat(str(captured),
+        self.assertThat(captured.stdout,
                         # suppress(file/spelling_error)
                         DocTestMatches("""... technical_looking_word ...""",
                                        doctest.ELLIPSIS |
