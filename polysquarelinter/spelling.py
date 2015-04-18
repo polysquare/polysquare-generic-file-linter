@@ -53,6 +53,9 @@ _valid_words_cache = dict()
 
 def clear_caches():
     """Clear all caches."""
+    for _, reader in _spellchecker_cache.values():
+        reader.close()
+
     _spellchecker_cache.clear()
     _valid_words_cache.clear()
 
@@ -265,15 +268,15 @@ def _split_line_with_offsets(line):
     """
     for m in re.finditer("[\.,:\;](?![^\s])", line):
         span = m.span()
-        line = line[:span[0]] +  " "  + line[span[1]:]
+        line = line[:span[0]] + " " + line[span[1]:]
 
     for m in re.finditer(r"[\"'\)\]\}>](?![^\.,\;:\"'\)\]\}>\s])", line):
         span = m.span()
-        line = line[:span[0]] +  " " + line[span[1]:]
+        line = line[:span[0]] + " " + line[span[1]:]
 
     for m in re.finditer("(?<![^\.,\;:\"'\(\[\{<\s])[\"'\(\[\{<]", line):
         span = m.span()
-        line = line[:span[0]] +  " " + line[span[1]:]
+        line = line[:span[0]] + " " + line[span[1]:]
 
     # Treat hyphen separated words as separate words
     line = line.replace("-", " ")
@@ -306,12 +309,13 @@ def valid_words_set(path_to_user_dictionary=None,
     words in that file will be added to the word set.
     """
     try:
-        valid =  _valid_words_cache[path_to_user_dictionary]
+        valid = _valid_words_cache[path_to_user_dictionary]
         return valid
     except KeyError:
         words = set()
         with resource_stream("polysquarelinter", "en_US.txt") as f:
-            words |= set(["".join(l).lower() for l in f.read().splitlines()])
+            read_file = lambda f: f.read().decode().splitlines()
+            words |= set(["".join(l).lower() for l in read_file(f)])
 
         if path_to_user_dictionary:
             # Add both case-sensitive and case-insensitive variants
@@ -322,6 +326,11 @@ def valid_words_set(path_to_user_dictionary=None,
 
         _valid_words_cache[path_to_user_dictionary] = words
         return words
+
+
+# Store the corrector and reader in the cache
+SpellcheckerCacheEntry = namedtuple("SpellcheckerCacheEntry",
+                                    "corrector reader")
 
 
 def _spellchecker_for(word_set,
@@ -340,7 +349,7 @@ def _spellchecker_for(word_set,
     graph gets repopulated.
     """
     try:
-        return _spellchecker_cache[name]
+        return _spellchecker_cache[name].corrector
     except KeyError:
         pass
 
@@ -386,8 +395,9 @@ def _spellchecker_for(word_set,
         spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
         word_graph = graph_storage.open_file(name)
 
-    corrector = spelling.GraphCorrector(fst.GraphReader(word_graph))
-    _spellchecker_cache[name] = corrector
+    reader = fst.GraphReader(word_graph)
+    corrector = spelling.GraphCorrector(reader)
+    _spellchecker_cache[name] = SpellcheckerCacheEntry(corrector, reader)
     return corrector
 
 
@@ -480,6 +490,7 @@ def _split_into_symbol_words(sym):
     words = [w.strip() for w in re.split(punc, sym)]
     return words
 
+
 def technical_words_from_shadow_contents(shadow_contents):
     """Get a set of technical words from :shadow_contents:.
 
@@ -556,6 +567,7 @@ def _error_if_symbol_unused(symbol_word,
                                col_offset,
                                result.suggestions,
                                SpellcheckError.TechnicalWord)
+
 
 class Dictionary(object):
 
@@ -667,6 +679,5 @@ def spellcheck_region(region_lines,
 
                     if error:
                         yield error
-
 
         line_offset += 1
