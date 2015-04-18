@@ -34,7 +34,7 @@ setup(name="polysquare-generic-file-linter",
               "polysquarelinter/en_US.txt"
           ]
       },
-      install_requires=["whoosh"],
+      install_requires=["whoosh<=2.6"],
       extras_require={
           "test": ["coverage",
                    "capture",
