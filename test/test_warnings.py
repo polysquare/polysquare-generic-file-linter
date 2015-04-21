@@ -10,7 +10,7 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
-from contextlib import contextmanager
+import doctest
 
 import os
 
@@ -22,14 +22,31 @@ import tempfile
 
 from collections import namedtuple
 
-import doctest
+from contextlib import contextmanager
 
-from nose_parameterized import parameterized, param
+from nose_parameterized import param, parameterized
 
 from polysquarelinter import linter
 
 from testtools import (ExpectedException, TestCase)
-from testtools.matchers import DocTestMatches, Equals, MatchesSetwise
+from testtools.matchers import (DocTestMatches,
+                                Equals as TTEqMatcher,
+                                MatchesSetwise)
+
+
+# Pychecker complains about the Equals matcher failing to override comparator
+# so do that here
+class Equals(TTEqMatcher):  # suppress(R0903)
+
+    """Matcher which tests equality."""
+
+    def __init__(self, matchee):
+        """Forward matchee to parent class."""
+        super(Equals, self).__init__(matchee)
+
+    def comparator(self, expected, other):
+        """Check that expected == other."""
+        return other == expected
 
 
 class CapturedOutput(object):  # suppress(too-few-public-methods)
@@ -127,6 +144,7 @@ def run_linter_throw(relative_path,
 def run_with_kwargs_as_switches(func, *args, **kwargs):
     """Run :func: with :kwargs: converted to switches."""
     arguments = list(args)
+
     def _convert_kv_to_switches(key, value):
         """Convert a key-value pair to command-line switches."""
         append_args = ["--{0}".format(key).replace("_", "-")]
@@ -359,7 +377,6 @@ class TestSpaceDescAndCopyrightWarnings(TestCase):
     def test_lint_fail(self, style):
         """Check that headerblock/desc_space_copyright fails.
 
-
         Test fails where there is not a single blank comment on the second
         last line
         """
@@ -536,23 +553,23 @@ class TestTrailingWhitespace(TestCase):
     @parameterized.expand(["contents     \ncontents\n",
                            "contents\n    \ncontents"])
     def test_lint_fail(self, contents):
-         """File fails when there is trailing whitespace."""
-         with ExpectedException(LinterFailure):
-              run_linter_throw("path/to/file",
-                               contents,
-                               FormatStyle("#", "#", ""),
-                               whitelist=["file/trailing_whitespace"])
+        """File fails when there is trailing whitespace."""
+        with ExpectedException(LinterFailure):
+            run_linter_throw("path/to/file",
+                             contents,
+                             FormatStyle("#", "#", ""),
+                             whitelist=["file/trailing_whitespace"])
 
     @parameterized.expand(["contents     \ncontents\n",
                            "    \ncontents"])
     def test_suggest_no_trailing_whitespace(self, contents):
         """File fails when there is trailing whitespace."""
         def get_replacement():
-             """Get replacement for trailing newline."""
-             run_linter_throw("path/to/file",
-                              contents,
-                              FormatStyle("#", "#", ""),
-                              whitelist=["file/trailing_whitespace"])
+            """Get replacement for trailing newline."""
+            run_linter_throw("path/to/file",
+                             contents,
+                             FormatStyle("#", "#", ""),
+                             whitelist=["file/trailing_whitespace"])
 
         exception = self.assertRaises(LinterFailure, get_replacement)
         self.assertEqual(replacement(exception),
@@ -564,7 +581,7 @@ class TestSpellingErrors(TestCase):
     """Test case for spelling errors."""
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls):  # suppress(N802)
         """Create a temporary directory to store word graph caches."""
         # This is the name of the directory that we want to
         # place our files in.
@@ -572,7 +589,7 @@ class TestSpellingErrors(TestCase):
         cls.cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls):  # suppress(N802)
         """Remove temporary directory storing word graph caches."""
         shutil.rmtree(cls.cache_dir)
 
@@ -606,14 +623,14 @@ class TestSpellingErrors(TestCase):
 
     @parameterized.expand(_KNOWN_STYLES)
     def test_no_spelling_error_inside_double_quoted_string(self, style):
-        """No spelling errors inside single double-quote string"""
+        """No spelling errors inside single double-quote string."""
         result = self._spellcheck_lint("{s}{e}\n\"splelling\"",
                                        style)
         self.assertTrue(result)
 
     @parameterized.expand(_KNOWN_STYLES)
     def test_no_spelling_error_inside_single_quoted_string(self, style):
-        """No spelling errors inside single single-quote string"""
+        """No spelling errors inside single single-quote string."""
         result = self._spellcheck_lint("{s}{e}\n'splelling'",
                                        style)
         self.assertTrue(result)
@@ -694,20 +711,21 @@ class TestSpellingErrors(TestCase):
         self.assertTrue(result)
 
     @parameterized.expand(_KNOWN_STYLES)
-    def test_spelling_mistake_for_referenced_symbol_not_in_context(self, style):
+    def test_spelling_mistake_for_referenced_symbol_not_in_context(self,
+                                                                   style):
         """Technical terms not referenced in context are invalid."""
         with ExpectedException(LinterFailure):
             content = "{s}{e}\n\"\"\"@technical_term\"\"\""
             self._spellcheck_lint(content, style)
 
     @parameterized.expand(_KNOWN_STYLES)
-    def test_no_spelling_mistakes_for_referenced_symbol_in_context(self, style):
+    def test_no_spelling_mistakes_for_referenced_symbol_in_context(self,
+                                                                   style):
         """Technical terms used in rest of file are valid words."""
         content = "{s}{e}\n\"\"\"@technical_term\"\"\")\n\n technical_term\n"
         result = self._spellcheck_lint(content, style)
 
         self.assertTrue(result)
-
 
     @parameterized.expand(_KNOWN_STYLES)
     def test_no_spelling_mistakes_after_docstring(self, style):
@@ -770,12 +788,15 @@ class TestLinterAcceptance(TestCase):
         super(TestLinterAcceptance, self).__init__(*args, **kwargs)
         self._temporary_file = None
 
-    def setUp(self):  # NOQA
+    def setUp(self):  # suppress(N802)
         """Create a temporary file."""
+        from six import StringIO
+
         super(TestLinterAcceptance, self).setUp()
         self._temporary_file = tempfile.mkstemp()
+        self.patch(sys, "stdout", StringIO())
 
-    def tearDown(self):  # NOQA
+    def tearDown(self):  # suppress(N802)
         """Remove temporary file."""
         os.remove(self._temporary_file[1])
         super(TestLinterAcceptance, self).tearDown()
@@ -805,7 +826,7 @@ class TestLinterAcceptance(TestCase):
                     "# Description\n"
                     "#\n"
                     "# See LICENCE.md for Copyright information"
-                    "# suppress(headerblock/copyright)\n" # on the same line
+                    "# suppress(headerblock/copyright)\n"  # on the same line
                     "\n")
 
         with os.fdopen(self._temporary_file[0], "a+") as process_file:
@@ -886,7 +907,7 @@ class TestLinterAcceptance(TestCase):
             self.patch(sys, "exit", lambda _: None)
             linter.main(["--checks"])
 
-        self.assertThat(captured.stdout,
+        self.assertThat(captured.stdout,  # suppress(PYC70)
                         DocTestMatches(doctest_contents,
                                        doctest.ELLIPSIS |
                                        doctest.NORMALIZE_WHITESPACE |

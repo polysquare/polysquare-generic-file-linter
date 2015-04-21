@@ -25,17 +25,19 @@ spellcheck_region takes a list of lines and spell-checks every
 word in that region. If it detects an error it will return
 a SpellcheckError indicating the offset into that chunk
 the error was detected.
-."""
+"""
+
+import errno
 
 import functools
+
+import itertools
 
 import os
 
 import re
 
 from collections import namedtuple
-
-import itertools
 
 from pkg_resources import resource_stream
 
@@ -45,13 +47,15 @@ from whoosh.filedb.filestore import FileStorage, RamStorage
 
 _SPELLCHECKABLE_WORDS = r"^([A-Za-z][a-z']*|[A-Z']*)$"
 _VALID_SYMBOL_WORDS = r"^[A-Za-z_][A-Za-z0-9_\.]*$"
-_POTENTIALLY_SYMBOL_WORDS = r"^[@:][A-Za-z_][A-Za-z0-9_]*[:@]*$"
 
-_spellchecker_cache = dict()
-_valid_words_cache = dict()
+# These are intended to be used as "global" variables, as caches. We
+# don't want to expose these caches to the user. As such, they should
+# not be named with the constant naming convention.
+_spellchecker_cache = dict()  # suppress(invalid-name)
+_valid_words_cache = dict()  # suppress(invalid-name)
 
 
-def clear_caches():
+def clear_caches():  # suppress(unused-function)
     """Clear all caches."""
     for _, reader in _spellchecker_cache.values():
         reader.close()
@@ -185,9 +189,9 @@ def _find_chunks(lines, chunk_begin_regex, chunk_end_regex, chunk_type):
     # by the same marker.
     if chunk_end_regex == chunk_begin_regex:
         assert len(all_out_points) == len(all_in_points)
-        ln = len(all_out_points)
-        all_out_points = [all_out_points[i] for i in range(1, ln, 2)]
-        all_in_points = [all_in_points[i] for i in range(0, ln, 2)]
+        length = len(all_out_points)
+        all_out_points = [all_out_points[i] for i in range(1, length, 2)]
+        all_in_points = [all_in_points[i] for i in range(0, length, 2)]
 
     # Now use all the in and out points to generate _ChunkInfo structs
     while len(all_out_points):
@@ -212,9 +216,9 @@ def _find_chunks(lines, chunk_begin_regex, chunk_end_regex, chunk_type):
 
         chunk_data = []
         for line_index in range(in_point.line, out_point.line + 1):
-            ln = len(lines[line_index])
+            line = len(lines[line_index])
             in_col = in_point.col if line_index == in_point.line else 0
-            out_col = out_point.col if line_index == out_point.line else ln
+            out_col = out_point.col if line_index == out_point.line else line
 
             chunk_data.append(lines[line_index][in_col:out_col])
 
@@ -225,7 +229,7 @@ def _find_chunks(lines, chunk_begin_regex, chunk_end_regex, chunk_type):
 
 
 def _filter_overlapping_chunks(chunks):
-    """Returns a list of non-overlapping chunks on a first chunk wins basis.
+    """Return a list of non-overlapping chunks on a first chunk wins basis.
 
     A chunk is considered to be overlapping if it starts before a chunk
     prior to it ends. We keep the former chunk.
@@ -266,16 +270,18 @@ def _split_line_with_offsets(line):
     a line (so parenthesis preceded or succeeded by spaces, periods, etc)
     and then splitting on spaces.
     """
-    for m in re.finditer("[\.,:\;](?![^\s])", line):
-        span = m.span()
+    for delimiter in re.finditer(r"[\.,:\;](?![^\s])", line):
+        span = delimiter.span()
         line = line[:span[0]] + " " + line[span[1]:]
 
-    for m in re.finditer(r"[\"'\)\]\}>](?![^\.,\;:\"'\)\]\}>\s])", line):
-        span = m.span()
+    for delimiter in re.finditer(r"[\"'\)\]\}>](?![^\.,\;:\"'\)\]\}>\s])",
+                                 line):
+        span = delimiter.span()
         line = line[:span[0]] + " " + line[span[1]:]
 
-    for m in re.finditer("(?<![^\.,\;:\"'\(\[\{<\s])[\"'\(\[\{<]", line):
-        span = m.span()
+    for delimiter in re.finditer(r"(?<![^\.,\;:\"'\(\[\{<\s])[\"'\(\[\{<]",
+                                 line):
+        span = delimiter.span()
         line = line[:span[0]] + " " + line[span[1]:]
 
     # Treat hyphen separated words as separate words
@@ -284,7 +290,7 @@ def _split_line_with_offsets(line):
     # Remove backticks
     line = line.replace("`", " ")
 
-    for match in re.finditer("[^\s]+", line):
+    for match in re.finditer(r"[^\s]+", line):
         content = match.group(0)
         if content.strip() != "":
             yield (match.span()[0], content)
@@ -293,9 +299,9 @@ def _split_line_with_offsets(line):
 def read_dictionary_file(dictionary_path):
     """Return all words in dictionary file as set."""
     if dictionary_path and os.path.exists(dictionary_path):
-        with open(dictionary_path, "r") as f:
+        with open(dictionary_path, "r") as dictionary:
             words = set(re.findall(r"(\w[\w']*\w|\w)",
-                                   " ".join(f.read().splitlines())))
+                                   " ".join(dictionary.read().splitlines())))
             return words
 
     return set()
@@ -308,14 +314,17 @@ def valid_words_set(path_to_user_dictionary=None,
     If :path_to_user_dictionary: is specified, then the newline-separated
     words in that file will be added to the word set.
     """
+    def read_file(binary_file):
+        """Read a binary file for its text lines."""
+        return binary_file.read().decode().splitlines()
+
     try:
         valid = _valid_words_cache[path_to_user_dictionary]
         return valid
     except KeyError:
         words = set()
-        with resource_stream("polysquarelinter", "en_US.txt") as f:
-            read_file = lambda f: f.read().decode().splitlines()
-            words |= set(["".join(l).lower() for l in read_file(f)])
+        with resource_stream("polysquarelinter", "en_US.txt") as words_file:
+            words |= set(["".join(l).lower() for l in read_file(words_file)])
 
         if path_to_user_dictionary:
             # Add both case-sensitive and case-insensitive variants
@@ -348,10 +357,8 @@ def _spellchecker_for(word_set,
     are newer than the stored word graph. If they are newer, then the word
     graph gets repopulated.
     """
-    try:
+    if _spellchecker_cache.get(name, None) is not None:
         return _spellchecker_cache[name].corrector
-    except KeyError:
-        pass
 
     # Check the modification time of all the paths in :sources: to see
     # if they've been modified since the cache file was created. If so,
@@ -364,11 +371,12 @@ def _spellchecker_for(word_set,
         # Ensure that the directory has been created
         try:
             os.makedirs(spellcheck_cache_path)
-        except OSError:
-            pass
+        except OSError as error:
+            if error.errno != errno.EEXIST:  # suppress(PYC90)
+                raise error
 
         graph_path = os.path.realpath(spellcheck_cache_path)
-        graph_storage = FileStorage(graph_path)
+        file_storage = FileStorage(graph_path)
 
         preexisting_cache = os.path.abspath(os.path.join(spellcheck_cache_path,
                                                          name))
@@ -380,20 +388,20 @@ def _spellchecker_for(word_set,
                     continue
 
                 if os.path.getmtime(source_path) > cache_mtime:
-                    graph_storage.delete_file(name)
+                    file_storage.delete_file(name)
                     break
 
         try:
-            word_graph = graph_storage.open_file(name)
+            word_graph = file_storage.open_file(name)
         except IOError:
-            word_graph = graph_storage.create_file(name)
+            word_graph = file_storage.create_file(name)
             spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-            word_graph = graph_storage.open_file(name)
+            word_graph = file_storage.open_file(name)
     else:
-        graph_storage = RamStorage()
-        word_graph = graph_storage.create_file(name)
+        ram_storage = RamStorage()
+        word_graph = ram_storage.create_file(name)
         spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-        word_graph = graph_storage.open_file(name)
+        word_graph = ram_storage.open_file(name)
 
     reader = fst.GraphReader(word_graph)
     corrector = spelling.GraphCorrector(reader)
@@ -401,7 +409,7 @@ def _spellchecker_for(word_set,
     return corrector
 
 
-def filter_nonspellcheckable_identifiers(line, block_out_regexes=None):
+def filter_nonspellcheckable_tokens(line, block_out_regexes=None):
     """Return line with paths, urls and emails filtered out.
 
     Block out other strings of text matching :block_out_regexes: if passed in.
@@ -413,13 +421,44 @@ def filter_nonspellcheckable_identifiers(line, block_out_regexes=None):
     ] + (block_out_regexes or list())
 
     for block_regex in all_block_out_regexes:
-        for m in re.finditer(block_regex, line):
-            spaces = " " * (m.end() - m.start())
-            line = line[:m.start()] + spaces + line[m.end():]
+        for marker in re.finditer(block_regex, line):
+            spaces = " " * (marker.end() - marker.start())
+            line = line[:marker.start()] + spaces + line[marker.end():]
 
     return line
 
 
+def _shadow_contents_from_chunks(contents, chunks, block_out_regexes=None):
+    """Remove all contents in spellcheckable :chunks: from contents."""
+    shadow_contents = [list(l) for l in contents]
+    for chunk in chunks:
+        char_offset = chunk.column
+        line_offset = 0
+
+        for index, line in enumerate(chunk.data):
+            # Block out entire chunk range from shadow_contents
+            for character_in_line in range(0, len(line)):
+                shadow_line = chunk.line + line_offset
+                shadow_char = char_offset + character_in_line
+                shadow_contents[shadow_line][shadow_char] = 0
+
+            # Also block out certain regexps from this chunk
+            line = filter_nonspellcheckable_tokens(line,
+                                                   block_out_regexes)
+            chunk.data[index] = line
+
+            line_offset += 1
+            char_offset = 0
+
+    return shadow_contents
+
+
+# There doesn't seem to be a shorter name that can be given to this function
+# which also retains its descriptive value. The function return both
+# the spellcheckable contents and the remaining contents which are not
+# spellcheckable.
+#
+# suppress(invalid-name)
 def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
     """For contents, split into spellcheckable and shadow parts.
 
@@ -440,7 +479,6 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
     else:
         end_comment = comment_system.end.replace("*", r"\*")
 
-    shadow_contents = [list(l) for l in contents]
     iterables = [
         _find_chunks(contents,
                      r"(?<![^\\]\\)\"",
@@ -457,22 +495,9 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
 
     # Shadow contents excludes anything in quotes
     chunks = _filter_overlapping_chunks(list(itertools.chain(*iterables)))
-    for chunk in chunks:
-        char_offset = chunk.column
-        line_offset = 0
-
-        for index, line in enumerate(chunk.data):
-            # Block out entire chunk range from shadow_contents
-            for c in range(0, len(line)):
-                shadow_contents[chunk.line + line_offset][char_offset + c] = 0
-
-            # Also block out certain regexps from this chunk
-            line = filter_nonspellcheckable_identifiers(line,
-                                                        block_out_regexes)
-            chunk.data[index] = line
-
-            line_offset += 1
-            char_offset = 0
+    shadow_contents = _shadow_contents_from_chunks(contents,
+                                                   chunks,
+                                                   block_out_regexes)
 
     # Only return chunks which are actually spellcheckable and not just
     # quotes which are intended to block out parts of the shadow contents
@@ -491,6 +516,10 @@ def _split_into_symbol_words(sym):
     return words
 
 
+# There is no shorter function name which will cause this function
+# name to lose its descriptive value.
+#
+# suppress(invalid-name)
 def technical_words_from_shadow_contents(shadow_contents):
     """Get a set of technical words from :shadow_contents:.
 
@@ -499,9 +528,9 @@ def technical_words_from_shadow_contents(shadow_contents):
     """
     technical_words = set()
     for line in shadow_contents:
-        zero_to_space = lambda c: " " if c == 0 else c
-        shadow_line = "".join([zero_to_space(c) for c in line])
-        for sym in _split_into_symbol_words(shadow_line):
+        # "Fix up" the shadow line by replacing zeros with spaces.
+        line = "".join([(lambda c: " " if c == 0 else c)(c) for c in line])
+        for sym in _split_into_symbol_words(line):
             if len(sym) and re.compile(_VALID_SYMBOL_WORDS).match(sym):
                 technical_words |= set([sym])
 
@@ -571,7 +600,7 @@ def _error_if_symbol_unused(symbol_word,
 
 class Dictionary(object):
 
-    """A dictionary which can find corrections a word set
+    """A dictionary which can find corrections a word set.
 
     Customize the words available in the dictionary by passing a set of
     words as :words: .
@@ -640,6 +669,7 @@ def spellcheck_region(region_lines,
     against the available symbols in :technical_words_dictionary: . If it is
     not in :technical_words_dictionary: then corrections will be suggested.
     """
+    user_dictionary_words = user_dictionary_words or set()
     spellcheckable_words_regex = re.compile(_SPELLCHECKABLE_WORDS)
 
     line_offset = 0
@@ -651,7 +681,7 @@ def spellcheck_region(region_lines,
 
             # If this word exists in the user dictionary, then always allow
             # it, even if it might be technical in nature
-            if word in (user_dictionary_words or set()):
+            if word in user_dictionary_words:
                 continue
 
             if (valid_words_dictionary and

@@ -10,9 +10,9 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
-import os
-
 import inspect
+
+import os
 
 import shutil
 
@@ -27,10 +27,25 @@ from polysquarelinter.spelling import SpellcheckError
 
 from testtools import ExpectedException, TestCase
 from testtools.matchers import (Contains,
-                                Equals,
+                                Equals as TTEqMatcher,
                                 MatchesListwise,
                                 MatchesSetwise,
                                 Not)
+
+
+# Pychecker complains about the Equals matcher failing to override comparator
+# so do that here
+class Equals(TTEqMatcher):  # suppress(R0903)
+
+    """Matcher which tests equality."""
+
+    def __init__(self, matchee):
+        """Forward matchee to parent class."""
+        super(Equals, self).__init__(matchee)
+
+    def comparator(self, expected, other):
+        """Check that expected == other."""
+        return other == expected
 
 
 class WordCacheTestCase(TestCase):
@@ -38,7 +53,7 @@ class WordCacheTestCase(TestCase):
     """A test case base class which keeps a word cache from start to finish."""
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls):  # suppress(N802)
         """Create a temporary directory to store word graph caches."""
         # This is the name of the directory that we want to
         # place our files in.
@@ -46,37 +61,37 @@ class WordCacheTestCase(TestCase):
         cls.cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls):  # suppress(N802)
         """Remove temporary directory storing word graph caches."""
         shutil.rmtree(cls.cache_dir)
 
 
 class TestDictionary(WordCacheTestCase):
 
-  """Test case for spelling.Dictionary object."""
+    """Test case for spelling.Dictionary object."""
 
-  def test_expected_english_words_corrections(self):
-      """Expected corrections returned for misspelled english word."""
-      dictionary = spelling.Dictionary(spelling.valid_words_set(),
-                                       "english_words",
-                                       self.__class__.cache_dir)
-      result = dictionary.corrections("splelling")
-      self.assertFalse(result.valid)
-      self.assertThat(result.suggestions,
-                      MatchesSetwise(Equals("spelling"),
-                                     Equals("spellings"),
-                                     Equals("spieling"),
-                                     Equals("spilling"),
-                                     Equals("swelling")))
+    def test_expected_english_words_corrections(self):
+        """Expected corrections returned for misspelled english word."""
+        dictionary = spelling.Dictionary(spelling.valid_words_set(),
+                                         "english_words",
+                                         self.__class__.cache_dir)
+        result = dictionary.corrections("splelling")
+        self.assertFalse(result.valid)
+        self.assertThat(result.suggestions,
+                        MatchesSetwise(Equals("spelling"),
+                                       Equals("spellings"),
+                                       Equals("spieling"),
+                                       Equals("spilling"),
+                                       Equals("swelling")))
 
-  def test_true_on_valid_word(self):
-      """True and empty list returned for valid english word."""
-      dictionary = spelling.Dictionary(spelling.valid_words_set(),
-                                       "english_words",
-                                       self.__class__.cache_dir)
-      result = dictionary.corrections("spelling")
-      self.assertTrue(result.valid)
-      self.assertEqual(result.suggestions, list())
+    def test_true_on_valid_word(self):
+        """True and empty list returned for valid english word."""
+        dictionary = spelling.Dictionary(spelling.valid_words_set(),
+                                         "english_words",
+                                         self.__class__.cache_dir)
+        result = dictionary.corrections("spelling")
+        self.assertTrue(result.valid)
+        self.assertEqual(result.suggestions, list())
 
 
 class TestDictionaryWithCustomWords(WordCacheTestCase):
@@ -88,8 +103,7 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
         super(TestDictionaryWithCustomWords, self).__init__(*args, **kwargs)
         self.user_dictionary_path = None
 
-
-    def setUp(self):
+    def setUp(self):  # suppress(N802)
         """Create a dictionary with custom words in it."""
         super(TestDictionaryWithCustomWords, self).setUp()
         self._current_path = os.getcwd()
@@ -98,7 +112,7 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
         self.user_dictionary_path = os.path.join(self._user_dictionary_dir,
                                                  "DICTIONARY")
 
-    def tearDown(self):
+    def tearDown(self):  # suppress(N802)
         """Remove dictionary and working directory."""
         os.chdir(self._current_path)
         shutil.rmtree(self._user_dictionary_dir)
@@ -150,7 +164,6 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
         self.assertTrue(result.valid)
         self.assertEqual(result.suggestions, list())
 
-
     def test_invalidate_custom_word_cache(self):
         """Regenerate internal user dictionary on file change."""
         with open(self.user_dictionary_path, "w") as user_dictionary:
@@ -187,8 +200,9 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
     """Test case for the spellcheckable_and_shadow_contents function."""
 
     @staticmethod
-    def _shadow_contents_to_string(shadow):
+    def shadow_contents_to_string(shadow):
         """Convert shadow contents to a single string."""
+        # suppress(PYC70,PYC90)
         return "".join(["".join([c for c in l if c != 0]) for l in shadow])
 
     def test_spellcheckable_chunks_not_in_shadow_contents(self):
@@ -196,7 +210,7 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
         contents = "# spellcheckable\n shadow".splitlines()
         chunks, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
-        self.assertThat(self.__class__._shadow_contents_to_string(shadow),
+        self.assertThat(self.__class__.shadow_contents_to_string(shadow),
                         Not(Contains(chunks[0].data[0])))
 
     def test_repeated_comment_markers(self):
@@ -216,9 +230,9 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
     def test_single_quoted_regions_not_found_in_shadow_contents(self):
         """Single quoted chunk is not found in shadow contents."""
         contents = "# spellcheckable\n 'quoted' shadow".splitlines()
-        chunks, shadow = spelling.spellcheckable_and_shadow_contents(contents)
+        _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
-        self.assertThat(self.__class__._shadow_contents_to_string(shadow),
+        self.assertThat(self.__class__.shadow_contents_to_string(shadow),
                         Not(Contains("quoted")))
 
     def test_double_quoted_regions_not_found_in_shadow_contents(self):
@@ -226,10 +240,10 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
         contents = "# spellcheckable\n \"quoted\" shadow".splitlines()
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
-        self.assertThat(self.__class__._shadow_contents_to_string(shadow),
+        self.assertThat(self.__class__.shadow_contents_to_string(shadow),
                         Not(Contains("quoted")))
 
-    @parameterized.expand([c for c in " .=[](){}<>"])
+    @parameterized.expand(list(" .=[](){}<>"))
     def test_split_technical_words_from_shadow_contents(self, character):
         """Split technical words from shadow contents."""
         contents = "#\n first_sym{0}second_sym".format(character).splitlines()
@@ -250,6 +264,7 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
 
         self.assertThat(chunks[0].data[0],
                         Not(Contains("blocked(region)")))
+
 
 class TestSpellcheckOnRegion(WordCacheTestCase):
 
@@ -344,16 +359,14 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
         self.assertEqual(0, len(errors))
 
     def test_always_allow_user_specified_word(self):
-        """Always allow user specified words, even if they appear technical."""
-        contents = "# appears_technical\n".splitlines()
+        """Allow user specified words even if they appear technical."""
+        contents = "# a_technical\n".splitlines()
         valid, technical = self.__class__.get_dictionaries(contents)
 
         errors = [e for e in spelling.spellcheck_region(contents,
                                                         valid,
                                                         technical,
-                                                        set([
-                                                            "appears_technical"
-                                                        ]))]
+                                                        set(["a_technical"]))]
         self.assertEqual(0, len(errors))
 
     def test_error_on_ordinary_mispelling_no_technical_dictionary(self):
@@ -404,7 +417,7 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
                          spelling.SpellcheckError.InvalidWord)
 
     def test_no_suggesting_technical_words(self):
-        """Does not suggest technical words on ordinary word misspelling."""
+        """Do not suggest technical words on ordinary word misspelling."""
         contents = "# splelling\n spl_lling".splitlines()
         valid, technical = self.__class__.get_dictionaries(contents)
 
@@ -414,20 +427,22 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
         self.assertThat(errors[0].suggestions,
                         Not(Contains("spl_lling")))
 
-class TestFilterNonspellcheckableIdentifiers(TestCase):
 
-    """Test cases for filtering out non-spellcheckable identifiers."""
+class TestFilterNonspellcheckableTokens(TestCase):
+
+    """Test cases for filtering out non-spellcheckable tokens."""
 
     @parameterized.expand(["https://domain.com/u/r/l.ext",
                            "path/to/file",
                            "/path/to/file",
                            "sample.email@address.com"])
-    def test_filter_identifier(self, identifier):
+    def test_filter_token(self, token):
         """Block out identifiers from text."""
-        text = "valid {identifier} valid".format(identifier=identifier)
-        blocked = spelling.filter_nonspellcheckable_identifiers(text)
+        text = "valid {token} valid".format(token=token)
+        blocked = spelling.filter_nonspellcheckable_tokens(text)
         self.assertEqual(blocked,
-                         "valid {0} valid".format(" " * len(identifier)))
+                         "valid {0} valid".format(" " * len(token)))
+
 
 class TestSpellcheckErrors(TestCase):
 
