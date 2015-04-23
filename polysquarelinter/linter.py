@@ -7,7 +7,7 @@
 
 import argparse
 
-import functools
+import itertools
 
 import multiprocessing
 
@@ -20,6 +20,10 @@ import sys
 from collections import defaultdict, namedtuple
 
 from contextlib import closing
+
+from functools import reduce as freduce
+
+import parmap
 
 from polysquarelinter.spelling import (Dictionary,
                                        SpellcheckError,
@@ -311,7 +315,7 @@ def _find_spelling_errors_in_chunks(chunks,
 
 
 def _create_valid_words_dictionary(spellchecker_cache_path):
-    """Creates a Dictionary at spellchecker_cache_path with valid words."""
+    """Create a Dictionary at spellchecker_cache_path with valid words."""
     user_dictionary = os.path.join(os.getcwd(), "DICTIONARY")
     user_words = read_dictionary_file(user_dictionary)
 
@@ -323,6 +327,7 @@ def _create_valid_words_dictionary(spellchecker_cache_path):
     return (user_words, valid_words)
 
 
+# suppress(invalid-name)
 def _create_technical_words_dictionary(spellchecker_cache_path,
                                        relative_path,
                                        user_words,
@@ -383,8 +388,8 @@ def _maybe_log_technical_terms(global_options, tool_options):
             terms = set(terms_file.read().splitlines())  # suppress(PYC70)
             terms_file.seek(0)  # suppress(PYC70)
             terms_file.truncate(0)  # suppress(PYC70)
-            tech_terms = functools.reduce(lambda x, y: x + y,
-                                          _drain(log_technical_terms_to_queue))
+            tech_terms = freduce(lambda x, y: x + y,
+                                 _drain(log_technical_terms_to_queue))
             terms_file.write("\n".join(list(terms |  # suppress(PYC70)
                                             set(tech_terms))))
 
@@ -490,7 +495,7 @@ def lint(relative_path_to_file,
 
 def linter_functions_from_filters(whitelist=None,
                                   blacklist=None):
-    """Iterable of _LinterFunction matching whitelist but not blacklist."""
+    """Yield tuples of _LinterFunction matching whitelist but not blacklist."""
     def _keyvalue_pair_if(dictionary, condition):
         """Return a key-value pair in dictionary if condition matched."""
         return {
@@ -576,10 +581,10 @@ def _report_lint_error(error, file_path):
     line = error[1].line
     code = error[0]
     description = error[1].description
-    sys.stdout.write("{0}:{1} [{2}] {3}".format(file_path,
-                                                line,
-                                                code,
-                                                description))
+    sys.stdout.write("{0}:{1} [{2}] {3}\n".format(file_path,
+                                                  line,
+                                                  code,
+                                                  description))
 
 
 def _apply_replacement(error, found_file, file_lines):
@@ -594,13 +599,12 @@ def _apply_replacement(error, found_file, file_lines):
     found_file.truncate()
 
 
-def tool_options_from_global_options(global_options):
+def tool_options_from_global(global_options):
     """From an argparse namespace, get a dict of options for the tools."""
-    from multiprocessing import Queue
-
     internal_opt = ["whitelist", "blacklist", "fix_what_you_can"]
+    manager = multiprocessing.Manager()
     translate = defaultdict(lambda: (lambda x: x),
-                            log_technical_terms_to=lambda _: Queue())
+                            log_technical_terms_to=lambda _: manager.Queue())
 
     tool_options = dict()
 
@@ -611,47 +615,83 @@ def tool_options_from_global_options(global_options):
     return tool_options
 
 
+class FileLinterFailure(namedtuple("LinterFailure", "absolute_path failure")):
+
+    """A class representing a linter failure as occurring on a file."""
+
+    def __lt__(self, other):
+        """Return true if self should be sorted less than other."""
+        if self.absolute_path == other.absolute_path:
+            return self.failure[1].line < other.failure[1].line
+
+        return self.absolute_path < other.absolute_path
+
+
+def _run_lint_on_file(file_path,
+                      linter_functions,
+                      tool_options,
+                      fix_what_you_can):
+    """Run each function in linter_functions on filename.
+
+    If fix_what_you_can is specified, then the first error that has a
+    possible replacement will be automatically fixed on this file.
+    """
+    with open(file_path, "r+") as found_file:
+        file_contents = found_file.read()
+        file_lines = file_contents.splitlines(True)
+        try:
+            errors = lint(file_path[len(os.getcwd()) + 1:],
+                          file_contents,
+                          linter_functions,
+                          **tool_options)
+        except RuntimeError as err:
+            msg = ("""RuntimeError in processing """
+                   """{0} - {1}""".format(file_path, str(err)))
+            raise RuntimeError(msg)
+
+        if fix_what_you_can:
+            for error_index, error in enumerate(errors):
+                if error[1].replacement is not None:
+                    _apply_replacement(error, found_file, file_lines)
+                    errors[error_index] = (error[0],
+                                           LinterFailure(error[1].description +
+                                                         " ... FIXED",
+                                                         error[1].line,
+                                                         error[1].replacement))
+                    break
+
+        return [FileLinterFailure(file_path, e) for e in errors]
+
+
 def main(arguments=None):
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
     linter_functions = dict(linter_functions_from_filters(result.whitelist,
                                                           result.blacklist))
     global_options = vars(result)
-    tool_options = tool_options_from_global_options(global_options)
+    tool_options = tool_options_from_global(global_options)
 
     for linter_function in linter_functions.values():
         if linter_function.before_all:
             linter_function.before_all(global_options, tool_options)
 
-    num_errors = 0
-    for found_filename in result.files:
-        file_path = os.path.abspath(found_filename)
-        with open(file_path, "r+") as found_file:
-            file_contents = found_file.read()
-            file_lines = file_contents.splitlines(True)
-            try:
-                errors = lint(file_path[len(os.getcwd()) + 1:],
-                              file_contents,
-                              linter_functions,
-                              **tool_options)
-            except RuntimeError as err:
-                msg = ("""RuntimeError in processing """
-                       """{0} - {1}""".format(file_path, str(err)))
-                raise RuntimeError(msg)
-            for error in errors:
-                _report_lint_error(error, file_path)
-                if (result.fix_what_you_can and
-                        error[1].replacement is not None):
-                    _apply_replacement(error, found_file, file_lines)
-                    sys.stdout.write(""" ... FIXED\n""")
-                    break
+    if len(result.files) > multiprocessing.cpu_count():
+        mapper = parmap.map
+    else:
+        # suppress(E731)
+        mapper = lambda f, i, *a: [f(*((x, ) + a)) for x in i]
 
-                sys.stdout.write("\n")
+    errors = list(itertools.chain(*mapper(_run_lint_on_file,
+                                          result.files,
+                                          linter_functions,
+                                          tool_options,
+                                          result.fix_what_you_can)))
 
-            num_errors += len(errors)
+    for error in sorted(errors):
+        _report_lint_error(error.failure, os.path.relpath(error.absolute_path))
 
     for linter_function in linter_functions.values():
         if linter_function.after_all:
             linter_function.after_all(global_options, tool_options)
 
-    return num_errors
+    return len(errors)

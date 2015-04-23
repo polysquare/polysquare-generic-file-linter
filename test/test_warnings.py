@@ -129,7 +129,7 @@ def run_linter_throw(relative_path,
     kwargs = defaultdict(lambda: None, **kwargs)
     functions = dict(linter.linter_functions_from_filters(kwargs["whitelist"],
                                                           kwargs["blacklist"]))
-    tool_options = linter.tool_options_from_global_options(kwargs)
+    tool_options = linter.tool_options_from_global(kwargs)
     errors = linter.lint(relative_path,
                          style_format(contents, style),
                          functions,
@@ -805,6 +805,32 @@ class TestLinterAcceptance(TestCase):
         """Remove temporary file."""
         os.remove(self._temporary_file[1])
         super(TestLinterAcceptance, self).tearDown()
+
+    def test_parallelization_path(self):
+        """Generate expected number of errors when running in parallel."""
+        contents = ("#\n"
+                    "#\n"
+                    "# Description\n"
+                    "#\n"
+                    "# See LICENCE.md for Copyright information\n"
+                    "\n")
+
+        temporary_dir = tempfile.mkdtemp(prefix=os.path.join(os.getcwd(),
+                                                             "technical"))
+        self.addCleanup(lambda: shutil.rmtree(temporary_dir))
+        files_to_lint = []
+
+        for i in range(0, 20):
+            with open(os.path.join(temporary_dir,
+                                   "file{0}".format(i)), "w") as lint_file:
+                lint_file.write(contents)
+                files_to_lint.append(os.path.realpath(lint_file.name))
+
+        result = run_with_kwargs_as_switches(linter.main,
+                                             *files_to_lint,
+                                             whitelist="headerblock/copyright")
+
+        self.assertEqual(result, 20)
 
     def test_inline_suppressions_above(self):
         """Check inline suppressions work above the error-generating line."""
