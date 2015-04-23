@@ -35,7 +35,10 @@ setup(name="polysquare-generic-file-linter",
           ]
       },
       setup_requires=["setuptools-markdown"],
-      install_requires=["whoosh<=2.6"],
+      install_requires=[
+          "parmap",
+          "whoosh<=2.6"
+      ],
       extras_require={
           "polysquarelint": ["polysquare-setuptools-lint"],
           "green": [

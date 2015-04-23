@@ -53,6 +53,7 @@ _VALID_SYMBOL_WORDS = r"^[A-Za-z_][A-Za-z0-9_\.]*$"
 # not be named with the constant naming convention.
 _spellchecker_cache = dict()  # suppress(invalid-name)
 _valid_words_cache = dict()  # suppress(invalid-name)
+_user_dictionary_cache = dict()  # suppress(invalid-name)
 
 
 def clear_caches():  # suppress(unused-function)
@@ -62,6 +63,7 @@ def clear_caches():  # suppress(unused-function)
 
     _spellchecker_cache.clear()
     _valid_words_cache.clear()
+    _user_dictionary_cache.clear()
 
 
 FileCommentSystem = namedtuple("FileCommentSystem", "begin middle end")
@@ -298,13 +300,16 @@ def _split_line_with_offsets(line):
 
 def read_dictionary_file(dictionary_path):
     """Return all words in dictionary file as set."""
-    if dictionary_path and os.path.exists(dictionary_path):
-        with open(dictionary_path, "r") as dictionary:
-            words = set(re.findall(r"(\w[\w']*\w|\w)",
-                                   " ".join(dictionary.read().splitlines())))
-            return words
+    try:
+        return _user_dictionary_cache[dictionary_path]
+    except KeyError:
+        if dictionary_path and os.path.exists(dictionary_path):
+            with open(dictionary_path, "r") as dict_f:
+                words = set(re.findall(r"(\w[\w']*\w|\w)",
+                                       " ".join(dict_f.read().splitlines())))
+                return words
 
-    return set()
+        return set()
 
 
 def valid_words_set(path_to_user_dictionary=None,
