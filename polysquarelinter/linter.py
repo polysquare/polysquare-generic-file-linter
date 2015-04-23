@@ -7,8 +7,6 @@
 
 import argparse
 
-from contextlib import closing
-
 import os
 
 import re
@@ -17,11 +15,13 @@ import sys
 
 from collections import namedtuple
 
+from contextlib import closing
+
 from polysquarelinter.spelling import (Dictionary,
-                                       read_dictionary_file,
-                                       spellcheckable_and_shadow_contents,
-                                       spellcheck_region,
                                        SpellcheckError,
+                                       read_dictionary_file,
+                                       spellcheck_region,
+                                       spellcheckable_and_shadow_contents,
                                        technical_words_from_shadow_contents,
                                        valid_words_set)
 
@@ -222,23 +222,23 @@ def _no_trailing_whitespace(relative_path, contents, linter_options):
     trailing_whitespace = re.compile(r"(?<![ \t\r\n])[ \t]+$")
 
     for index, line in enumerate(contents):
-        for m in trailing_whitespace.finditer(line):
-            assert m.end() == len(line) - 1
+        for space in trailing_whitespace.finditer(line):
+            assert space.end() == len(line) - 1
             return LinterFailure("Trailing whitespace",
                                  index + 1,
-                                 line[:m.start()] + line[m.end():])
+                                 line[:space.start()] + line[space.end():])
 
 
 # Disabling too-many-arguments as this is just a helper function
 # to populate another named tuple.
 #
-# pylint:disable=too-many-arguments
-def _populate_spelling_error_message(word,
-                                     suggestions,
-                                     contents,
-                                     line_offset,
-                                     column_offset,
-                                     message_start):
+# suppress(too-many-arguments)
+def _populate_spelling_error(word,
+                             suggestions,
+                             contents,
+                             line_offset,
+                             column_offset,
+                             message_start):
     """Create a LinterFailure for word.
 
     This function takes suggestions from :suggestions: and uses it to
@@ -288,7 +288,6 @@ def _find_spelling_errors_in_chunks(chunks,
                                     technical_words_dictionary=None,
                                     user_dictionary_words=None):
     """For each chunk and a set of valid and technical words, find errors."""
-
     for chunk in chunks:
         for error in spellcheck_region(chunk.data,
                                        valid_words_dictionary,
@@ -298,13 +297,13 @@ def _find_spelling_errors_in_chunks(chunks,
                                                      error.column_offset,
                                                      chunk.column)
             msg = _SPELLCHECK_MESSAGES[error.error_type].format(error.word)
-            yield _populate_spelling_error_message(error.word,
-                                                   error.suggestions,
-                                                   contents,
-                                                   error.line_offset +
-                                                   chunk.line,
-                                                   col_offset,
-                                                   msg)
+            yield _populate_spelling_error(error.word,
+                                           error.suggestions,
+                                           contents,
+                                           error.line_offset +
+                                           chunk.line,
+                                           col_offset,
+                                           msg)
 
 
 def _maybe_log_technical_terms(linter_options, technical_terms):
@@ -315,17 +314,19 @@ def _maybe_log_technical_terms(linter_options, technical_terms):
     of technical words that we have now with the technical words already
     in it.
     """
-
     log_technical_terms_to_path = linter_options.get("log_technical_terms_to",
                                                      None)
     if log_technical_terms_to_path:
         with closing(os.fdopen(os.open(log_technical_terms_to_path,
                                        os.O_RDWR | os.O_CREAT),
                                "r+")) as terms_file:
-            terms = set(terms_file.read().splitlines())
-            terms_file.seek(0)
-            terms_file.truncate(0)
-            terms_file.write("\n".join(list(terms | technical_terms)))
+            # pychecker can't see through the handle returned by closing
+            # so we need to suppress these warnings.
+            terms = set(terms_file.read().splitlines())  # suppress(PYC70)
+            terms_file.seek(0)  # suppress(PYC70)
+            terms_file.truncate(0)  # suppress(PYC70)
+            terms_file.write("\n".join(list(terms |  # suppress(PYC70)
+                                            technical_terms)))
 
 
 def _no_spelling_errors(relative_path, contents, linter_options):
@@ -530,9 +531,9 @@ def _get_tool_options(argparse_namespace):
     internal_opt = ["whitelist", "blacklist", "fix_what_you_can"]
     rvars = vars(argparse_namespace)
 
-    for k, v in rvars.items():
-        if k not in internal_opt and rvars[k] is not None:
-            yield k, v
+    for key, value in rvars.items():
+        if key not in internal_opt and rvars[key] is not None:
+            yield key, value
 
 
 def main(arguments=None):

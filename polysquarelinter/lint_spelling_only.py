@@ -29,7 +29,7 @@ def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     purposes between invocations, since generating the spellchecking
     graph is an expensive operation which can take a few seconds to complete.
     """
-    contents = spelling.filter_nonspellcheckable_identifiers(contents)
+    contents = spelling.filter_nonspellcheckable_tokens(contents)
     lines = contents.splitlines(True)
     user_dictionary = os.path.join(os.getcwd(), "DICTIONARY")
     user_words = spelling.read_dictionary_file(user_dictionary)
@@ -100,7 +100,7 @@ def _report_spelling_error(error, file_path):
                                                   description))
 
 
-def main(arguments=None):
+def main(arguments=None):  # suppress(unused-function)
     """Entry point for the spellcheck linter."""
     result = _parse_arguments(arguments)
 

@@ -10,6 +10,8 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
+import doctest
+
 import os
 
 import shutil
@@ -17,8 +19,6 @@ import shutil
 import sys
 
 import tempfile
-
-import doctest
 
 from polysquarelinter import lint_spelling_only
 
@@ -114,7 +114,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         self._tech_words_file = None
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls):  # suppress(N802)
         """Create a temporary directory to store word graph caches."""
         # This is the name of the directory that we want to
         # place our files in.
@@ -122,12 +122,14 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         cls.cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls):  # suppress(N802)
         """Remove temporary directory storing word graph caches."""
         shutil.rmtree(cls.cache_dir)
 
-    def setUp(self):  # NOQA
+    def setUp(self):  # suppress(N802)
         """Create a temporary file."""
+        from six import StringIO
+
         super(TestLintSpellingOnlyAcceptance, self).setUp()
         self._last_directory = os.getcwd()
         self._temp_directory = tempfile.mkdtemp()
@@ -143,7 +145,10 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with open(self._tech_words_file, "w"):
             pass
 
-    def tearDown(self):  # NOQA
+        # Finally, patch stdout to not go anywhere
+        self.patch(sys, "stdout", StringIO())
+
+    def tearDown(self):  # suppress(N802)
         """Remove temporary file."""
         os.chdir(self._last_directory)
         shutil.rmtree(self._temp_directory)
@@ -179,7 +184,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with CapturedOutput() as captured:
             self._run_with_cache(self._temporary_file)
 
-        self.assertThat(captured.stdout,
+        self.assertThat(captured.stdout,  # suppress(PYC70)
                         DocTestMatches("""... [file/spelling_error] ...""",
                                        doctest.ELLIPSIS |
                                        doctest.NORMALIZE_WHITESPACE |
@@ -194,7 +199,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
             self._run_with_cache(self._temporary_file,
                                  technical_terms=self._tech_words_file)
 
-        self.assertThat(captured.stdout,
+        self.assertThat(captured.stdout,  # suppress(PYC70)
                         # suppress(file/spelling_error)
                         DocTestMatches("""... technical_looking_word ...""",
                                        doctest.ELLIPSIS |
