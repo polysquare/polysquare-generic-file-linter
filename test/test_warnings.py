@@ -20,7 +20,7 @@ import sys
 
 import tempfile
 
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 
 from contextlib import contextmanager
 
@@ -126,9 +126,14 @@ def run_linter_throw(relative_path,
                      style,
                      **kwargs):
     """Run linter.lint and throws if it reports a message."""
+    kwargs = defaultdict(lambda: None, **kwargs)
+    functions = dict(linter.linter_functions_from_filters(kwargs["whitelist"],
+                                                          kwargs["blacklist"]))
+    tool_options = linter.tool_options_from_global_options(kwargs)
     errors = linter.lint(relative_path,
                          style_format(contents, style),
-                         **kwargs)
+                         functions,
+                         **dict(tool_options))
 
     if len(errors):
         description = errors[0][1].description
