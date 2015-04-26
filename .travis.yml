@@ -17,7 +17,7 @@ before_cache:
 after_success:
  - polysquare_run coverage/python/coverage.py
 before_deploy:
- - eval $(curl -LSs --retry 100 public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d container -s deploy/python/deploy.py -e)
+ - polysquare_run deploy/python/deploy.py
 deploy:
   provider: pypi
   user:

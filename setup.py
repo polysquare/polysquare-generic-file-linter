@@ -9,7 +9,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 setup(name="polysquare-generic-file-linter",
-      version="0.0.18",
+      version="0.0.19",
       description="Polysquare Style Guide Linter",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
