@@ -963,8 +963,8 @@ class TestLinterAcceptance(TestCase):
         with in_dir(temporary_dir):
             first_file_path = os.path.join(temporary_dir, "first_file.txt")
             second_file_path = os.path.join(temporary_dir, "second_file.txt")
-            technical_terms_path = os.path.join(temporary_dir,
-                                                "technical_terms.txt")
+            tech_terms_path = os.path.join(temporary_dir,
+                                           "technical_terms.txt")
 
             with open(first_file_path, "w") as f:
                 f.write("#\n technical_term_one shared_technical_term\n")
@@ -972,14 +972,13 @@ class TestLinterAcceptance(TestCase):
             with open(second_file_path, "w") as f:
                 f.write("#\n technical_term_two shared_technical_term\n")
 
-            run_linter_main(first_file_path,
-                            whitelist=["file/spelling_error"],
-                            log_technical_terms_to=technical_terms_path)
-            run_linter_main(second_file_path,
-                            whitelist=["file/spelling_error"],
-                            log_technical_terms_to=technical_terms_path)
+            run_with_kwargs_as_switches(linter.main,
+                                        first_file_path,
+                                        second_file_path,
+                                        whitelist=["file/spelling_error"],
+                                        log_technical_terms_to=tech_terms_path)
 
-            with open(technical_terms_path, "r") as f:
+            with open(tech_terms_path, "r") as f:
                 logged_technical_terms = f.read().splitlines()
 
             self.assertThat(logged_technical_terms,
