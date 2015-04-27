@@ -388,7 +388,7 @@ def _maybe_log_technical_terms(global_options, tool_options):
             terms = set(terms_file.read().splitlines())  # suppress(PYC70)
             terms_file.seek(0)  # suppress(PYC70)
             terms_file.truncate(0)  # suppress(PYC70)
-            tech_terms = freduce(lambda x, y: x + y,
+            tech_terms = freduce(lambda x, y: x | y,
                                  _drain(log_technical_terms_to_queue))
             terms_file.write("\n".join(list(terms |  # suppress(PYC70)
                                             set(tech_terms))))
