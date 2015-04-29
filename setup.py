@@ -9,7 +9,7 @@ from setuptools import find_packages
 from setuptools import setup
 
 setup(name="polysquare-generic-file-linter",
-      version="0.0.21",
+      version="0.0.22",
       description="Polysquare Style Guide Linter",
       long_description_markdown_filename="README.md",
       author="Sam Spilsbury",
@@ -34,7 +34,6 @@ setup(name="polysquare-generic-file-linter",
               "polysquarelinter/en_US.txt"
           ]
       },
-      setup_requires=["setuptools-markdown"],
       install_requires=[
           "parmap",
           "whoosh<=2.6"
@@ -48,7 +47,8 @@ setup(name="polysquare-generic-file-linter",
               "setuptools-green",
               "six",
               "testtools"
-          ]
+          ],
+          "upload": ["setuptools-markdwon"]
       },
       entry_points={
           "console_scripts": [
