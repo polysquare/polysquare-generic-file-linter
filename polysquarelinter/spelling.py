@@ -304,7 +304,7 @@ def read_dictionary_file(dictionary_path):
         return _user_dictionary_cache[dictionary_path]
     except KeyError:
         if dictionary_path and os.path.exists(dictionary_path):
-            with open(dictionary_path, "r") as dict_f:
+            with open(dictionary_path, "rt") as dict_f:
                 words = set(re.findall(r"(\w[\w']*\w|\w)",
                                        " ".join(dict_f.read().splitlines())))
                 return words
@@ -321,7 +321,7 @@ def valid_words_set(path_to_user_dictionary=None,
     """
     def read_file(binary_file):
         """Read a binary file for its text lines."""
-        return binary_file.read().decode().splitlines()
+        return binary_file.read().decode("ascii").splitlines()
 
     try:
         valid = _valid_words_cache[path_to_user_dictionary]
