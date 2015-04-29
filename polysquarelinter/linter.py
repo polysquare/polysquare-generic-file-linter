@@ -17,6 +17,8 @@ import re
 
 import sys
 
+import traceback
+
 from collections import defaultdict, namedtuple
 
 from contextlib import closing
@@ -663,6 +665,27 @@ def _run_lint_on_file(file_path,
         return [FileLinterFailure(file_path, e) for e in errors]
 
 
+def _run_lint_on_file_exceptions(file_path,
+                                 linter_functions,
+                                 tool_options,
+                                 fix_what_you_can):
+    """Run except function in :linter_functions: on file_path.
+
+    This function calls through to _run_lint_on_file, but prints a traceback
+    for any exceptions encountered. It is intended to be used with parmap.
+    """
+    try:
+        return _run_lint_on_file(file_path,
+                                 linter_functions,
+                                 tool_options,
+                                 fix_what_you_can)
+    except Exception as exception:
+
+        traceback.print_exc()
+
+        raise exception
+
+
 def main(arguments=None):
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
@@ -684,7 +707,7 @@ def main(arguments=None):
         # suppress(E731)
         mapper = lambda f, i, *a: [f(*((x, ) + a)) for x in i]
 
-    errors = list(itertools.chain(*mapper(_run_lint_on_file,
+    errors = list(itertools.chain(*mapper(_run_lint_on_file_exceptions,
                                           result.files,
                                           linter_functions,
                                           tool_options,
