@@ -675,7 +675,10 @@ def main(arguments=None):
         if linter_function.before_all:
             linter_function.before_all(global_options, tool_options)
 
-    if len(result.files) > multiprocessing.cpu_count():
+    multiprocessing_disabled = os.eniron.get("DISABLE_MULTIPROCESSING", False)
+
+    if (len(result.files) > multiprocessing.cpu_count() and
+            not multiprocessing_disabled):
         mapper = parmap.map
     else:
         # suppress(E731)
