@@ -43,7 +43,7 @@ from pkg_resources import resource_stream
 
 from whoosh import spelling
 from whoosh.automata import fst
-from whoosh.filedb.filestore import FileStorage, RamStorage
+from whoosh.filedb.filestore import FileStorage, RamStorage, copy_to_ram
 
 _SPELLCHECKABLE_WORDS = r"^([A-Za-z][a-z']*|[A-Z']*)$"
 _VALID_SYMBOL_WORDS = r"^[A-Za-z_][A-Za-z0-9_\.]*$"
@@ -304,7 +304,7 @@ def read_dictionary_file(dictionary_path):
         return _user_dictionary_cache[dictionary_path]
     except KeyError:
         if dictionary_path and os.path.exists(dictionary_path):
-            with open(dictionary_path, "r") as dict_f:
+            with open(dictionary_path, "rt") as dict_f:
                 words = set(re.findall(r"(\w[\w']*\w|\w)",
                                        " ".join(dict_f.read().splitlines())))
                 return words
@@ -321,7 +321,7 @@ def valid_words_set(path_to_user_dictionary=None,
     """
     def read_file(binary_file):
         """Read a binary file for its text lines."""
-        return binary_file.read().decode().splitlines()
+        return binary_file.read().decode("ascii").splitlines()
 
     try:
         valid = _valid_words_cache[path_to_user_dictionary]
@@ -397,11 +397,11 @@ def _spellchecker_for(word_set,
                     break
 
         try:
-            word_graph = file_storage.open_file(name)
-        except IOError:
+            word_graph = copy_to_ram(file_storage).open_file(name)
+        except (IOError, NameError):
             word_graph = file_storage.create_file(name)
             spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-            word_graph = file_storage.open_file(name)
+            word_graph = copy_to_ram(file_storage).open_file(name)
     else:
         ram_storage = RamStorage()
         word_graph = ram_storage.create_file(name)
