@@ -43,7 +43,7 @@ from pkg_resources import resource_stream
 
 from whoosh import spelling
 from whoosh.automata import fst
-from whoosh.filedb.filestore import FileStorage, RamStorage
+from whoosh.filedb.filestore import FileStorage, RamStorage, copy_to_ram
 
 _SPELLCHECKABLE_WORDS = r"^([A-Za-z][a-z']*|[A-Z']*)$"
 _VALID_SYMBOL_WORDS = r"^[A-Za-z_][A-Za-z0-9_\.]*$"
@@ -397,11 +397,11 @@ def _spellchecker_for(word_set,
                     break
 
         try:
-            word_graph = file_storage.open_file(name)
-        except IOError:
+            word_graph = copy_to_ram(file_storage).open_file(name)
+        except (IOError, NameError):
             word_graph = file_storage.create_file(name)
             spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-            word_graph = file_storage.open_file(name)
+            word_graph = copy_to_ram(file_storage).open_file(name)
     else:
         ram_storage = RamStorage()
         word_graph = ram_storage.create_file(name)
