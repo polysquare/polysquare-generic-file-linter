@@ -99,15 +99,16 @@ def _filename_in_headerblock(relative_path, contents, linter_options):
                        """{0} lines""").format(check_index + 1)
         return LinterFailure(description, 1, replacement=None)
 
-    regex = re.compile(r"^{0} \/".format(_HDR_COMMENT) +
-                       re.escape(relative_path) + "$")
+    header_path = relative_path.replace("\\", "/")
+    regex = re.compile(r"^{0} \/{1}$".format(_HDR_COMMENT,
+                                             re.escape(header_path)))
     if not regex.match(contents[check_index]):
         description = ("""The filename /{0} must be the """
                        """first line of the header""")
-        return LinterFailure(description.format(relative_path),
+        return LinterFailure(description.format(header_path),
                              check_index + 1,
                              _comment_type_from_line(contents[check_index]) +
-                             "/{0}\n".format(relative_path))
+                             "/{0}\n".format(header_path))
 
 
 def _match_space_at_line(line):
