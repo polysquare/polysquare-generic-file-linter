@@ -35,6 +35,12 @@ from polysquarelinter.spelling import (Dictionary,
                                        technical_words_from_shadow_contents,
                                        valid_words_set)
 
+try:
+    from Queue import Queue
+except ImportError:
+    # suppress(F811,E301,E101,F401,unused-import,import-error)
+    from queue import Queue
+
 _ALL_COMMENT = r"(/\*| \*\/| \*|#|//|rem)"
 _HDR_COMMENT = r"(/\*|#|//|rem)"
 _MDL_COMMENT = r"( \*\/| \*|#|//|rem)"
@@ -602,12 +608,32 @@ def _apply_replacement(error, found_file, file_lines):
     found_file.truncate()
 
 
-def tool_options_from_global(global_options):
+def _should_use_multiprocessing(num_jobs):
+    """Return true if multiprocessing should be enabled."""
+    return (not os.getenv("DISABLE_MULTIPROCESSING", None) and
+            multiprocessing.cpu_count() < num_jobs and
+            multiprocessing.cpu_count() > 2)
+
+
+def _obtain_queue(num_jobs):
+    """Return queue type most appropriate for runtime model.
+
+    If we are using multiprocessing, that should be
+    multiprocessing.Manager().Queue. If we are just using a
+    single process, then use a normal queue type.
+    """
+    if _should_use_multiprocessing(num_jobs):
+        return multiprocessing.Manager().Queue()
+    else:
+        return Queue()
+
+
+def tool_options_from_global(global_options, num_jobs):
     """From an argparse namespace, get a dict of options for the tools."""
     internal_opt = ["whitelist", "blacklist", "fix_what_you_can"]
-    manager = multiprocessing.Manager()
+    queue_object = _obtain_queue(num_jobs)
     translate = defaultdict(lambda: (lambda x: x),
-                            log_technical_terms_to=lambda _: manager.Queue())
+                            log_technical_terms_to=lambda _: queue_object)
 
     tool_options = dict()
 
@@ -693,16 +719,15 @@ def main(arguments=None):
     linter_functions = dict(linter_functions_from_filters(result.whitelist,
                                                           result.blacklist))
     global_options = vars(result)
-    tool_options = tool_options_from_global(global_options)
+    tool_options = tool_options_from_global(global_options, len(result.files))
 
     for linter_function in linter_functions.values():
         if linter_function.before_all:
             linter_function.before_all(global_options, tool_options)
 
-    multiprocessing_disabled = os.environ.get("DISABLE_MULTIPROCESSING", False)
+    use_multiprocessing = _should_use_multiprocessing(len(result.files))
 
-    if (len(result.files) > multiprocessing.cpu_count() and
-            not multiprocessing_disabled):
+    if use_multiprocessing:
         mapper = parmap.map
     else:
         # suppress(E731)

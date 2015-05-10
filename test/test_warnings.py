@@ -129,7 +129,7 @@ def run_linter_throw(relative_path,
     kwargs = defaultdict(lambda: None, **kwargs)
     functions = dict(linter.linter_functions_from_filters(kwargs["whitelist"],
                                                           kwargs["blacklist"]))
-    tool_options = linter.tool_options_from_global(kwargs)
+    tool_options = linter.tool_options_from_global(kwargs, 1)
     errors = linter.lint(relative_path,
                          style_format(contents, style),
                          functions,
