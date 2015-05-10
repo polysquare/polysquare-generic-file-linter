@@ -12,6 +12,8 @@
 
 import doctest
 
+import errno
+
 import os
 
 import shutil
@@ -802,7 +804,19 @@ class TestLinterAcceptance(TestCase):
         self.patch(sys, "stdout", StringIO())
 
     def tearDown(self):  # suppress(N802)
-        """Remove temporary file."""
+        """Remove temporary file.
+
+        Note that we need to ensure that the file is closed
+        first, so if it hasn't been opened yet, we won't get
+        EBADF. Otherwise we'll get EBADF and we can safely
+        ignore it.
+        """
+        try:
+            os.close(self._temporary_file[0])
+        except OSError as error:
+            if error.errno != errno.EBADF:   # suppress(PYC90)
+                raise error
+
         os.remove(self._temporary_file[1])
         super(TestLinterAcceptance, self).tearDown()
 
