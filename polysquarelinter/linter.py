@@ -35,6 +35,12 @@ from polysquarelinter.spelling import (Dictionary,
                                        technical_words_from_shadow_contents,
                                        valid_words_set)
 
+try:
+    from Queue import Queue
+except ImportError:
+    # suppress(F811,E301,E101,F401,unused-import,import-error)
+    from queue import Queue
+
 _ALL_COMMENT = r"(/\*| \*\/| \*|#|//|rem)"
 _HDR_COMMENT = r"(/\*|#|//|rem)"
 _MDL_COMMENT = r"( \*\/| \*|#|//|rem)"
@@ -99,15 +105,16 @@ def _filename_in_headerblock(relative_path, contents, linter_options):
                        """{0} lines""").format(check_index + 1)
         return LinterFailure(description, 1, replacement=None)
 
-    regex = re.compile(r"^{0} \/".format(_HDR_COMMENT) +
-                       re.escape(relative_path) + "$")
+    header_path = relative_path.replace("\\", "/")
+    regex = re.compile(r"^{0} \/{1}$".format(_HDR_COMMENT,
+                                             re.escape(header_path)))
     if not regex.match(contents[check_index]):
         description = ("""The filename /{0} must be the """
                        """first line of the header""")
-        return LinterFailure(description.format(relative_path),
+        return LinterFailure(description.format(header_path),
                              check_index + 1,
                              _comment_type_from_line(contents[check_index]) +
-                             "/{0}\n".format(relative_path))
+                             "/{0}\n".format(header_path))
 
 
 def _match_space_at_line(line):
@@ -601,12 +608,32 @@ def _apply_replacement(error, found_file, file_lines):
     found_file.truncate()
 
 
-def tool_options_from_global(global_options):
+def _should_use_multiprocessing(num_jobs):
+    """Return true if multiprocessing should be enabled."""
+    return (not os.getenv("DISABLE_MULTIPROCESSING", None) and
+            multiprocessing.cpu_count() < num_jobs and
+            multiprocessing.cpu_count() > 2)
+
+
+def _obtain_queue(num_jobs):
+    """Return queue type most appropriate for runtime model.
+
+    If we are using multiprocessing, that should be
+    multiprocessing.Manager().Queue. If we are just using a
+    single process, then use a normal queue type.
+    """
+    if _should_use_multiprocessing(num_jobs):
+        return multiprocessing.Manager().Queue()
+    else:
+        return Queue()
+
+
+def tool_options_from_global(global_options, num_jobs):
     """From an argparse namespace, get a dict of options for the tools."""
     internal_opt = ["whitelist", "blacklist", "fix_what_you_can"]
-    manager = multiprocessing.Manager()
+    queue_object = _obtain_queue(num_jobs)
     translate = defaultdict(lambda: (lambda x: x),
-                            log_technical_terms_to=lambda _: manager.Queue())
+                            log_technical_terms_to=lambda _: queue_object)
 
     tool_options = dict()
 
@@ -686,22 +713,21 @@ def _run_lint_on_file_exceptions(file_path,
         raise exception
 
 
-def main(arguments=None):
+def main(arguments=None):   # suppress(unused-function)
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
     linter_functions = dict(linter_functions_from_filters(result.whitelist,
                                                           result.blacklist))
     global_options = vars(result)
-    tool_options = tool_options_from_global(global_options)
+    tool_options = tool_options_from_global(global_options, len(result.files))
 
     for linter_function in linter_functions.values():
         if linter_function.before_all:
             linter_function.before_all(global_options, tool_options)
 
-    multiprocessing_disabled = os.environ.get("DISABLE_MULTIPROCESSING", False)
+    use_multiprocessing = _should_use_multiprocessing(len(result.files))
 
-    if (len(result.files) > multiprocessing.cpu_count() and
-            not multiprocessing_disabled):
+    if use_multiprocessing:
         mapper = parmap.map
     else:
         # suppress(E731)
