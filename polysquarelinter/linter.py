@@ -713,7 +713,7 @@ def _run_lint_on_file_exceptions(file_path,
         raise exception
 
 
-def main(arguments=None):
+def main(arguments=None):   # suppress(unused-function)
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
     linter_functions = dict(linter_functions_from_filters(result.whitelist,
