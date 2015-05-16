@@ -28,7 +28,7 @@ setup(name="polysquare-generic-file-linter",
                    "License :: OSI Approved :: MIT License"],
       license="MIT",
       keywords="development linters",
-      packages=find_packages(exclude=["tests"]),
+      packages=find_packages(exclude=["test"]),
       package_data={
           "polysquarelinter": [
               "polysquarelinter/en_US.txt"
