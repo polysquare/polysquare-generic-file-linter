@@ -28,7 +28,7 @@ setup(name="polysquare-generic-file-linter",
                    "License :: OSI Approved :: MIT License"],
       license="MIT",
       keywords="development linters",
-      packages=find_packages(exclude=["tests"]),
+      packages=find_packages(exclude=["test"]),
       package_data={
           "polysquarelinter": [
               "polysquarelinter/en_US.txt"
@@ -39,7 +39,7 @@ setup(name="polysquare-generic-file-linter",
           "whoosh<=2.6"
       ],
       extras_require={
-          "polysquarelint": ["polysquare-setuptools-lint"],
+          "polysquarelint": ["polysquare-setuptools-lint>=0.0.9"],
           "green": [
               "coverage",
               "nose",
