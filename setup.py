@@ -39,7 +39,7 @@ setup(name="polysquare-generic-file-linter",
           "whoosh<=2.6"
       ],
       extras_require={
-          "polysquarelint": ["polysquare-setuptools-lint"],
+          "polysquarelint": ["polysquare-setuptools-lint>=0.0.9"],
           "green": [
               "coverage",
               "nose",
