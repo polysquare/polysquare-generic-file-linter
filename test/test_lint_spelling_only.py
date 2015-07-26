@@ -145,8 +145,11 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with open(self._tech_words_file, "w"):
             pass
 
-        # Finally, patch stdout to not go anywhere
+        # Patch stdout to not go anywhere
         self.patch(sys, "stdout", StringIO())
+
+        # Finally, disable caching
+        os.environ["_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING"] = "1"
 
     def tearDown(self):  # suppress(N802)
         """Remove temporary file."""

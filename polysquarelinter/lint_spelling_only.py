@@ -7,12 +7,17 @@
 
 import argparse
 
+import hashlib
+
 import os
 
 import sys
 
+import tempfile
+
 from polysquarelinter import spelling
 from polysquarelinter.spelling import Dictionary, spellcheck_region
+from polysquarelinter.stamp import stamp
 
 
 def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
@@ -61,6 +66,8 @@ def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
 
 def _parse_arguments(arguments=None):
     """Return a parser context result."""
+    dir_hash = hashlib.sha1(os.getcwd().encode("utf-8")).hexdigest()
+
     parser = argparse.ArgumentParser(description="""Find spelling errors""")
     parser.add_argument("files",
                         nargs="*",
@@ -73,6 +80,20 @@ def _parse_arguments(arguments=None):
     parser.add_argument("--technical-terms",
                         help="""path to file to source technical terms from""",
                         default=None)
+    parser.add_argument("--technical-terms-dependencies",
+                        help="""list of files which were used to generate """
+                             """technical terms. Specify these files to """
+                             """ensure that new technical terms are used """
+                             """when updated.""",
+                        nargs="*",
+                        metavar="DEPENDENCY",
+                        default=list())
+    parser.add_argument("--stamp-directory",
+                        help="""path to directory to store cached results""",
+                        default=os.path.join(tempfile.gettempdir(),
+                                             "jobstamps",
+                                             "spellcheck_linter",
+                                             dir_hash))
 
     return parser.parse_args(arguments)
 
@@ -102,15 +123,29 @@ def _report_spelling_error(error, file_path):
 
 def main(arguments=None):  # suppress(unused-function)
     """Entry point for the spellcheck linter."""
+    dictionary_path = os.path.abspath("DICTIONARY")
     result = _parse_arguments(arguments)
 
     num_errors = 0
     for found_filename in result.files:
         file_path = os.path.abspath(found_filename)
         with open(file_path, "r+") as found_file:
-            errors = spellcheck(found_file.read(),
-                                result.technical_terms,
-                                result.spellcheck_cache)
+            jobstamps_dependencies = ([file_path] +
+                                      result.technical_terms_dependencies)
+
+            if os.path.exists(dictionary_path):
+                jobstamps_dependencies.append(dictionary_path)
+
+            kwargs = {
+                "jobstamps_dependencies": jobstamps_dependencies,
+                "jobstamps_cache_output_directory": result.stamp_directory,
+            }
+
+            errors = stamp(spellcheck,
+                           found_file.read(),
+                           result.technical_terms,
+                           result.spellcheck_cache,
+                           **kwargs)
 
             for error in errors:
                 _report_spelling_error(error, file_path)
