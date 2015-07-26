@@ -4,7 +4,7 @@
 
 | Travis CI | AppVeyor | Coverage | PyPI |
 |-----------|----------|----------|------|
-|[![Travis](https://travis-ci.org/polysquare/polysquare-generic-file-linter.svg?branch=master)](https://travis-ci.org/polysquare/polysquare-generic-file-linter)|[![AppVeyor](https://ci.appveyor.com/api/projects/status/100s4jga4wc92lq0/branch/master?svg=true)](https://ci.appveyor.com/project/smspillaz/polysquare-generic-file-linter/branch/master)|[![Coverage](https://coveralls.io/repos/polysquare/polysquare-generic-file-linter/badge.png?branch=master)](https://coveralls.io/r/polysquare/polysquare-generic-file-linter?branch=master)|[![PyPI](https://pypip.in/version/polysquare-generic-file-linter/badge.svg)](https://pypi.python.org/pypi/polysquare-generic-file-linter/)|
+|[![Travis](https://img.shields.io/travis/polysquare/polysquare-generic-file-linter.svg)]()|[![AppVeyor](https://img.shields.io/appveyor/ci/polysquare/polysquare-generic-file-linter.svg)]()|[![Coveralls](https://img.shields.io/coveralls/polysquare/polysquare-generic-file-linter.svg)]()|[![PyPI](https://img.shields.io/pypi/v/polysquare-generic-file-linter.svg)]()[![PyPI](https://img.shields.io/pypi/pyversions/polysquare-generic-file-linter.svg)]()|[![License](https://img.shields.io/github/license/polysquare/polysquare-generic-file-linter.svg)]()|
 
 Checks each file passed in for compliance with polysquare style guidelines.
 
