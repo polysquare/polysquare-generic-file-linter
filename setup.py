@@ -48,7 +48,7 @@ setup(name="polysquare-generic-file-linter",
               "six",
               "testtools"
           ],
-          "upload": ["setuptools-markdwon"]
+          "upload": ["setuptools-markdown"]
       },
       entry_points={
           "console_scripts": [
