@@ -88,7 +88,7 @@ def _parse_arguments(arguments=None):
                         nargs="*",
                         metavar="DEPENDENCY",
                         default=list())
-    parser.add_argument("--stamp-directory",
+    parser.add_argument("--stamp-file-path",
                         help="""path to directory to store cached results""",
                         default=os.path.join(tempfile.gettempdir(),
                                              "jobstamps",
@@ -138,7 +138,7 @@ def main(arguments=None):  # suppress(unused-function)
 
             kwargs = {
                 "jobstamps_dependencies": jobstamps_dependencies,
-                "jobstamps_cache_output_directory": result.stamp_directory,
+                "jobstamps_cache_output_directory": result.stamp_file_path,
             }
 
             errors = stamp(spellcheck,
