@@ -88,7 +88,17 @@ def replacement(exception):
     return exception.replacement
 
 
-class TestFilenameHeaderWarnings(TestCase):
+class DisableStampingTestCase(TestCase):
+
+    """Base TestCase class that explicitly disables job caching."""
+
+    def setUp(self):
+        """Disable job caching."""
+        super(DisableStampingTestCase, self).setUp()
+        os.environ["_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING"] = "1"
+
+
+class TestFilenameHeaderWarnings(DisableStampingTestCase):
 
     """Test case for file names being at the top of a header."""
 
@@ -181,7 +191,7 @@ class TestFilenameHeaderWarnings(TestCase):
                          (1, style_format("{s} /path/to/file\n", style)))
 
 
-class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
+class TestSpaceBetweenHeaderAndDescWarnings(DisableStampingTestCase):
 
     """Test case for a single blank comment between top and body of header."""
 
@@ -262,7 +272,7 @@ class TestSpaceBetweenHeaderAndDescWarnings(TestCase):
                          (2, style_format("{m}\n{m} Text{e}", style)))
 
 
-class TestSpaceDescAndCopyrightWarnings(TestCase):
+class TestSpaceDescAndCopyrightWarnings(DisableStampingTestCase):
 
     """Test case for a single blank comment between bottom and body."""
 
@@ -316,7 +326,7 @@ class TestSpaceDescAndCopyrightWarnings(TestCase):
                          (3, style_format("{m}\n{m} Text{e}\n", style)))
 
 
-class TestCopyrightNotice(TestCase):
+class TestCopyrightNotice(DisableStampingTestCase):
 
     """Test case for Copyright notice at end of header block."""
 
@@ -400,7 +410,7 @@ class TestCopyrightNotice(TestCase):
                          (3, style_format(expected_repl, style)))
 
 
-class TestNewlineAsLastChar(TestCase):
+class TestNewlineAsLastChar(DisableStampingTestCase):
 
     r"""Test case for \n as last char of file."""
 
@@ -443,7 +453,7 @@ class TestNewlineAsLastChar(TestCase):
                          (2, style_format("{m} Text{e}\n", style)))
 
 
-class TestTrailingWhitespace(TestCase):
+class TestTrailingWhitespace(DisableStampingTestCase):
 
     """Test case for trailing whitespace."""
 
@@ -482,7 +492,7 @@ class TestTrailingWhitespace(TestCase):
                          (1, contents.splitlines(True)[0].replace(" ", "")))
 
 
-class TestSpellingErrors(TestCase):
+class TestSpellingErrors(DisableStampingTestCase):
 
     """Test case for spelling errors."""
 

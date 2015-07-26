@@ -157,6 +157,8 @@ class TestLinterAcceptance(TestCase):
         self._temporary_file = tempfile.mkstemp()
         self.patch(sys, "stdout", StringIO())
 
+        os.environ["_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING"] = "1"
+
     def tearDown(self):  # suppress(N802)
         """Remove temporary file.
 

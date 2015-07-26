@@ -7,6 +7,8 @@
 
 import argparse
 
+import hashlib
+
 import itertools
 
 import multiprocessing
@@ -17,9 +19,11 @@ import re
 
 import sys
 
+import tempfile
+
 import traceback
 
-from collections import defaultdict, namedtuple
+from collections import OrderedDict, defaultdict, namedtuple
 
 from contextlib import closing
 
@@ -34,6 +38,7 @@ from polysquarelinter.spelling import (Dictionary,
                                        spellcheckable_and_shadow_contents,
                                        technical_words_from_shadow_contents,
                                        valid_words_set)
+from polysquarelinter.stamp import stamp
 
 try:
     from Queue import Queue
@@ -386,21 +391,21 @@ def _maybe_log_technical_terms(global_options, tool_options):
     log_technical_terms_to_queue = tool_options.get("log_technical_terms_to",
                                                     None)
     if log_technical_terms_to_path:
-
         assert log_technical_terms_to_queue is not None
 
-        with closing(os.fdopen(os.open(log_technical_terms_to_path,
-                                       os.O_RDWR | os.O_CREAT),
-                               "r+")) as terms_file:
-            # pychecker can't see through the handle returned by closing
-            # so we need to suppress these warnings.
-            terms = set(terms_file.read().splitlines())  # suppress(PYC70)
-            terms_file.seek(0)  # suppress(PYC70)
-            terms_file.truncate(0)  # suppress(PYC70)
-            tech_terms = freduce(lambda x, y: x | y,
-                                 _drain(log_technical_terms_to_queue))
-            terms_file.write("\n".join(list(terms |  # suppress(PYC70)
-                                            set(tech_terms))))
+        if not log_technical_terms_to_queue.empty():
+            with closing(os.fdopen(os.open(log_technical_terms_to_path,
+                                           os.O_RDWR | os.O_CREAT),
+                                   "r+")) as terms_file:
+                # pychecker can't see through the handle returned by closing
+                # so we need to suppress these warnings.
+                terms = set(terms_file.read().splitlines())
+                terms_file.seek(0)
+                terms_file.truncate(0)
+                tech_terms = freduce(lambda x, y: x | y,
+                                     _drain(log_technical_terms_to_queue))
+                terms_file.write("\n".join(list(terms |
+                                                set(tech_terms))))
 
 
 def _no_spelling_errors(relative_path, contents, linter_options):
@@ -456,8 +461,21 @@ def _error_is_suppressed(error, code, contents):
 
     return False
 
-_LinterFunction = namedtuple("_LinterFunction",
-                             "function before_all after_all")
+
+class _LinterFunction(namedtuple("_LinterFunction",
+                                 "function before_all after_all")):
+
+    """A function and some before/after hooks to be called."""
+
+    def __repr__(self):
+        """Print function names, but no more."""
+        func_name = self.function.__name__ if self.function else "_"
+        before_name = self.before_all.__name__ if self.before_all else "_"
+        after_name = self.after_all.__name__ if self.after_all else "_"
+
+        return "_LinterFunction({}, {}, {})".format(func_name,
+                                                    before_name,
+                                                    after_name)
 
 
 def _linter_function(function, before_all=None, after_all=None):
@@ -547,6 +565,8 @@ class ShowAvailableChecksAction(argparse.Action):  # pylint:disable=R0903
 
 def _parse_arguments(arguments=None):
     """Return a parser context result."""
+    dir_hash = hashlib.sha1(os.getcwd().encode("utf-8")).hexdigest()
+
     parser = argparse.ArgumentParser(description="""Lint for Polysquare """
                                      """style guide""")
     parser.add_argument("--checks",
@@ -576,6 +596,12 @@ def _parse_arguments(arguments=None):
     parser.add_argument("--log-technical-terms-to",
                         help="""path to file to log technical terms to""",
                         default=None)
+    parser.add_argument("--stamp-file-path",
+                        help="""path to directory to store cached results""",
+                        default=os.path.join(tempfile.gettempdir(),
+                                             "jobstamps",
+                                             "spellcheck_linter",
+                                             dir_hash))
     parser.add_argument("--block-regexps",
                         help="""Regular expressions to exclude from """
                              """all checks.""",
@@ -615,6 +641,32 @@ def _should_use_multiprocessing(num_jobs):
             multiprocessing.cpu_count() > 2)
 
 
+class ReprQueue(object):
+
+    """Queue that has a stable __repr__."""
+
+    def __init__(self, queue):
+        """Initialize with underlying queue."""
+        super(ReprQueue, self).__init__()
+        self._queue = queue
+
+    def __repr__(self):
+        """Class name of underlying queue."""
+        return self._queue.__class__.__name__
+
+    def put(self, item, block=True, timeout=None):
+        """Put item into underlying queue."""
+        return self._queue.put(item, block, timeout)
+
+    def get(self, block=True, timeout=None):
+        """Get item from underlying queue."""
+        return self._queue.get(block, timeout)
+
+    def empty(self):
+        """Return empty status from underlying queue."""
+        return self._queue.empty()
+
+
 def _obtain_queue(num_jobs):
     """Return queue type most appropriate for runtime model.
 
@@ -623,9 +675,9 @@ def _obtain_queue(num_jobs):
     single process, then use a normal queue type.
     """
     if _should_use_multiprocessing(num_jobs):
-        return multiprocessing.Manager().Queue()
-    else:
-        return Queue()
+        return ReprQueue(multiprocessing.Manager().Queue())
+
+    return ReprQueue(Queue())
 
 
 def tool_options_from_global(global_options, num_jobs):
@@ -635,11 +687,11 @@ def tool_options_from_global(global_options, num_jobs):
     translate = defaultdict(lambda: (lambda x: x),
                             log_technical_terms_to=lambda _: queue_object)
 
-    tool_options = dict()
+    tool_options = OrderedDict()
 
-    for key, value in global_options.items():
-        if key not in internal_opt and value is not None:
-            tool_options[key] = translate[key](value)
+    for key in sorted(global_options.keys()):
+        if key not in internal_opt and global_options[key] is not None:
+            tool_options[key] = translate[key](global_options[key])
 
     return tool_options
 
@@ -707,21 +759,59 @@ def _run_lint_on_file_exceptions(file_path,
                                  tool_options,
                                  fix_what_you_can)
     except Exception as exception:
-
         traceback.print_exc()
-
         raise exception
+
+
+def _run_lint_on_file_stamped(file_path,  # suppress(too-many-arguments)
+                              stamp_file_path,
+                              log_technical_terms_to,
+                              linter_functions,
+                              tool_options,
+                              fix_what_you_can):
+    """Run linter functions on file_path, stamping in stamp_file_path."""
+    dictionary_path = os.path.abspath("DICTIONARY")
+    dependencies = [file_path]
+
+    if os.path.exists(dictionary_path):
+        dependencies.append(dictionary_path)
+
+    kwargs = OrderedDict()
+    kwargs["jobstamps_dependencies"] = dependencies
+    kwargs["jobstamps_cache_output_directory"] = stamp_file_path
+
+    if log_technical_terms_to:
+        kwargs["jobstamps_output_files"] = [log_technical_terms_to]
+
+    return stamp(_run_lint_on_file_exceptions,
+                 file_path,
+                 linter_functions,
+                 tool_options,
+                 fix_what_you_can,
+                 **kwargs)
+
+
+def _ordered(generator, *args, **kwargs):
+    """Sort keys of unordered_dict and store in OrderedDict."""
+    unordered_dict = {k: v for k, v in generator(*args, **kwargs)}
+    keys = sorted(list(dict(unordered_dict).keys()))
+    result = OrderedDict()
+    for key in keys:
+        result[key] = unordered_dict[key]
+
+    return result
 
 
 def main(arguments=None):   # suppress(unused-function)
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
-    linter_functions = dict(linter_functions_from_filters(result.whitelist,
-                                                          result.blacklist))
+    linter_funcs = _ordered(linter_functions_from_filters,
+                            result.whitelist,
+                            result.blacklist)
     global_options = vars(result)
     tool_options = tool_options_from_global(global_options, len(result.files))
 
-    for linter_function in linter_functions.values():
+    for linter_function in linter_funcs.values():
         if linter_function.before_all:
             linter_function.before_all(global_options, tool_options)
 
@@ -733,17 +823,19 @@ def main(arguments=None):   # suppress(unused-function)
         # suppress(E731)
         mapper = lambda f, i, *a: [f(*((x, ) + a)) for x in i]
 
-    errors = list(itertools.chain(*mapper(_run_lint_on_file_exceptions,
+    errors = list(itertools.chain(*mapper(_run_lint_on_file_stamped,
                                           result.files,
-                                          linter_functions,
+                                          result.stamp_file_path,
+                                          result.log_technical_terms_to,
+                                          linter_funcs,
                                           tool_options,
                                           result.fix_what_you_can)))
 
     for error in sorted(errors):
         _report_lint_error(error.failure, os.path.relpath(error.absolute_path))
 
-    for linter_function in linter_functions.values():
-        if linter_function.after_all:
-            linter_function.after_all(global_options, tool_options)
+    for linter_funcs in linter_funcs.values():
+        if linter_funcs.after_all:
+            linter_funcs.after_all(global_options, tool_options)
 
     return len(errors)
