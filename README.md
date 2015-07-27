@@ -23,7 +23,7 @@ Checks each file passed in for compliance with polysquare style guidelines.
                          that do not appear in the rest of the source file
 * `file/trailing_whitespace`: Checks that no line contains trailing whitespace
 
-## Usage ##
+## Main Linter Usage ##
 
     usage: polysquare-generic-file-linter [-h] [--checks]
                                           [--whitelist [LIST [LIST ...]]]
@@ -31,6 +31,7 @@ Checks each file passed in for compliance with polysquare style guidelines.
                                           [--fix-what-you-can]
                                           [--spellcheck-cache SPELLCHECK_CACHE]
                                           [--log-technical-terms-to LOG]
+                                          [--stamp-file-path STAMP_FILE_PATH]
                                           [--block-regexps [BLOCK [BLOCK ...]]]
                                           [FILE [FILE ...]]
 
@@ -51,6 +52,8 @@ Checks each file passed in for compliance with polysquare style guidelines.
                             path to spell-checking cache file
       --log-technical-terms-to LOG_TECHNICAL_TERMS_TO
                             path to file to log technical terms to
+      --stamp-file-path STAMP_FILE_PATH
+                            path to directory to store cached results
       --block-regexps [BLOCK_REGEXES [BLOCK_REGEXES ...]]
                             Regular expressions to exclude from all checks.
 
@@ -128,6 +131,34 @@ built-in American English dictionary. If `--technical-terms` and a path to a
 filename containing technical terms is provided, it will also check that
 technical looking terms exist in this file.
 
+### Spellcheck Linter Usage ###
+
+    usage: spellcheck-linter [-h] [--spellcheck-cache SPELLCHECK_CACHE]
+                             [--technical-terms TECHNICAL_TERMS]
+                             [--technical-terms-dependencies [[DEPENDENCY ...]]]
+                             [--stamp-file-path STAMP_FILE_PATH]
+                             [FILE [FILE ...]]
+
+    Find spelling errors
+
+    positional arguments:
+      FILE                  read FILE
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --spellcheck-cache SPELLCHECK_CACHE
+                            path to spell-checking cache file
+      --technical-terms TECHNICAL_TERMS
+                            path to file to source technical terms from
+      --technical-terms-dependencies [DEPENDENCY [DEPENDENCY ...]]
+                            list of files which were used to generate technical
+                            terms. Specify these files to ensure that new
+                            technical terms are used when updated.
+      --stamp-file-path STAMP_FILE_PATH
+                            path to directory to store cached results
+
+#### Technical terms ###
+
 A technical terms file is just a list of symbols in a text file. As a matter
 of convenience, this can be automatically generated for you by passing
 `--log-technical-terms-to` to `polysquare-generic-file-linter` when checking
@@ -164,3 +195,12 @@ you are reporting errors, any error in `SpellcheckError` as returned by
 `spellcheck_region` will be returned relative to the contents passed to it
 and not to the whole file. Use the offsets in `_ChunkInfo` to turn these
 into absolute offsets into the file being checked itself.
+
+### Caching ###
+
+Internally, `polysquare-generic-file-linter` and `spellcheck-linter` cache
+their results using the [`jobstamps`](https://github.com/polysquare/jobstamps)
+library. If you want to redirect where the cache files are written, you
+can pass `--stamp-file-path` to either tool. Also note
+`--technical-terms-dependencies` in `spellcheck-linter`; this option should
+contain a list of files which were used to generate /`technical_terms.txt`.
