@@ -400,12 +400,14 @@ def _maybe_log_technical_terms(global_options, tool_options):
                 # pychecker can't see through the handle returned by closing
                 # so we need to suppress these warnings.
                 terms = set(terms_file.read().splitlines())
-                terms_file.seek(0)
-                terms_file.truncate(0)
-                tech_terms = freduce(lambda x, y: x | y,
-                                     _drain(log_technical_terms_to_queue))
-                terms_file.write("\n".join(list(terms |
-                                                set(tech_terms))))
+                new_terms = set(freduce(lambda x, y: x | y,
+                                        _drain(log_technical_terms_to_queue)))
+
+                if not terms.issuperset(new_terms):
+                    terms_file.seek(0)
+                    terms_file.truncate(0)
+                    terms_file.write("\n".join(list(terms |
+                                                    set(new_terms))))
 
 
 def _no_spelling_errors(relative_path, contents, linter_options):

@@ -150,10 +150,6 @@ technical looking terms exist in this file.
                             path to spell-checking cache file
       --technical-terms TECHNICAL_TERMS
                             path to file to source technical terms from
-      --technical-terms-dependencies [DEPENDENCY [DEPENDENCY ...]]
-                            list of files which were used to generate technical
-                            terms. Specify these files to ensure that new
-                            technical terms are used when updated.
       --stamp-file-path STAMP_FILE_PATH
                             path to directory to store cached results
 
@@ -201,6 +197,4 @@ into absolute offsets into the file being checked itself.
 Internally, `polysquare-generic-file-linter` and `spellcheck-linter` cache
 their results using the [`jobstamps`](https://github.com/polysquare/jobstamps)
 library. If you want to redirect where the cache files are written, you
-can pass `--stamp-file-path` to either tool. Also note
-`--technical-terms-dependencies` in `spellcheck-linter`; this option should
-contain a list of files which were used to generate /`technical_terms.txt`.
+can pass `--stamp-file-path` to either tool.

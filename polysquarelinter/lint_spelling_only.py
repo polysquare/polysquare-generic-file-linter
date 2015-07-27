@@ -80,14 +80,6 @@ def _parse_arguments(arguments=None):
     parser.add_argument("--technical-terms",
                         help="""path to file to source technical terms from""",
                         default=None)
-    parser.add_argument("--technical-terms-dependencies",
-                        help="""list of files which were used to generate """
-                             """technical terms. Specify these files to """
-                             """ensure that new technical terms are used """
-                             """when updated.""",
-                        nargs="*",
-                        metavar="DEPENDENCY",
-                        default=list())
     parser.add_argument("--stamp-file-path",
                         help="""path to directory to store cached results""",
                         default=os.path.join(tempfile.gettempdir(),
@@ -130,11 +122,14 @@ def main(arguments=None):  # suppress(unused-function)
     for found_filename in result.files:
         file_path = os.path.abspath(found_filename)
         with open(file_path, "r+") as found_file:
-            jobstamps_dependencies = ([file_path] +
-                                      result.technical_terms_dependencies)
+            jobstamps_dependencies = [file_path]
 
             if os.path.exists(dictionary_path):
                 jobstamps_dependencies.append(dictionary_path)
+
+            if (result.technical_terms and
+                    os.path.exists(result.technical_terms)):
+                jobstamps_dependencies.append(result.technical_terms)
 
             kwargs = {
                 "jobstamps_dependencies": jobstamps_dependencies,
