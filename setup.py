@@ -35,7 +35,7 @@ setup(name="polysquare-generic-file-linter",
           ]
       },
       install_requires=[
-          "jobstamps>=0.0.7",
+          "jobstamps>=0.0.8",
           "parmap",
           "Whoosh<=2.6.0"
       ],
