@@ -35,12 +35,12 @@ setup(name="polysquare-generic-file-linter",
           ]
       },
       install_requires=[
-          "jobstamps>=0.0.8",
+          "jobstamps>=0.0.11",
           "parmap",
           "Whoosh<=2.6.0"
       ],
       extras_require={
-          "polysquarelint": ["polysquare-setuptools-lint>=0.0.16"],
+          "polysquarelint": ["polysquare-setuptools-lint>=0.0.22"],
           "green": [
               "nose",
               "nose-parameterized>=0.5.0",
