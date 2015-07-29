@@ -5,8 +5,6 @@ environment:
 
 cache:
  - C:\container -> appveyor.yml
- - C:\Python27 -> appveyor.yml
- - C:\Python34 -> appveyor.yml
 
 install:
  - ps: $env:PATH="${env:PYTHON};${env:PYTHON}/Scripts;${env:PATH};C:/MinGW/bin"
