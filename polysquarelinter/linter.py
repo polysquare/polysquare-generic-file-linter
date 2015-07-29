@@ -29,6 +29,8 @@ from contextlib import closing
 
 from functools import reduce as freduce
 
+from jobstamps import jobstamp
+
 import parmap
 
 from polysquarelinter.spelling import (Dictionary,
@@ -765,13 +767,13 @@ def _run_lint_on_file_exceptions(file_path,
         raise exception
 
 
-def _run_lint_on_file_stamped(file_path,  # suppress(too-many-arguments)
-                              stamp_file_path,
-                              log_technical_terms_to,
-                              linter_functions,
-                              tool_options,
-                              fix_what_you_can):
-    """Run linter functions on file_path, stamping in stamp_file_path."""
+def _run_lint_on_file_stamped_args(file_path,  # suppress(too-many-arguments)
+                                   stamp_file_path,
+                                   log_technical_terms_to,
+                                   linter_functions,
+                                   tool_options,
+                                   fix_what_you_can):
+    """Return tuple of args and kwargs that function would be called with."""
     dictionary_path = os.path.abspath("DICTIONARY")
     dependencies = [file_path]
 
@@ -785,12 +787,20 @@ def _run_lint_on_file_stamped(file_path,  # suppress(too-many-arguments)
     if log_technical_terms_to:
         kwargs["jobstamps_output_files"] = [log_technical_terms_to]
 
+    return ((file_path,
+             linter_functions,
+             tool_options,
+             fix_what_you_can),
+            kwargs)
+
+
+def _run_lint_on_file_stamped(*args, **kwargs):
+    """Run linter functions on file_path, stamping in stamp_file_path."""
+    stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args, **kwargs)
+
     return stamp(_run_lint_on_file_exceptions,
-                 file_path,
-                 linter_functions,
-                 tool_options,
-                 fix_what_you_can,
-                 **kwargs)
+                 *stamp_args,
+                 **stamp_kwargs)
 
 
 def _ordered(generator, *args, **kwargs):
@@ -804,6 +814,25 @@ def _ordered(generator, *args, **kwargs):
     return result
 
 
+def _any_would_run(func, filenames, *args, **kwargs):
+    """True if a linter function would be called on any of filenames."""
+    if os.environ.get("_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING", None):
+        return True
+
+    for filename in filenames:
+        stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(filename,
+                                                                  *args,
+                                                                  **kwargs)
+        dependency = jobstamp.out_of_date(func,
+                                          *stamp_args,
+                                          **stamp_kwargs)
+
+        if dependency:
+            return True
+
+    return False
+
+
 def main(arguments=None):   # suppress(unused-function)
     """Entry point for the linter."""
     result = _parse_arguments(arguments)
@@ -812,12 +841,22 @@ def main(arguments=None):   # suppress(unused-function)
                             result.blacklist)
     global_options = vars(result)
     tool_options = tool_options_from_global(global_options, len(result.files))
+    any_would_run = _any_would_run(_run_lint_on_file_exceptions,
+                                   result.files,
+                                   result.stamp_file_path,
+                                   result.log_technical_terms_to,
+                                   linter_funcs,
+                                   tool_options,
+                                   result.fix_what_you_can)
 
-    for linter_function in linter_funcs.values():
-        if linter_function.before_all:
-            linter_function.before_all(global_options, tool_options)
+    if any_would_run:
+        for linter_function in linter_funcs.values():
+            if linter_function.before_all:
+                linter_function.before_all(global_options, tool_options)
 
-    use_multiprocessing = _should_use_multiprocessing(len(result.files))
+        use_multiprocessing = _should_use_multiprocessing(len(result.files))
+    else:
+        use_multiprocessing = False
 
     if use_multiprocessing:
         mapper = parmap.map
@@ -836,8 +875,9 @@ def main(arguments=None):   # suppress(unused-function)
     for error in sorted(errors):
         _report_lint_error(error.failure, os.path.relpath(error.absolute_path))
 
-    for linter_funcs in linter_funcs.values():
-        if linter_funcs.after_all:
-            linter_funcs.after_all(global_options, tool_options)
+    if any_would_run:
+        for linter_funcs in linter_funcs.values():
+            if linter_funcs.after_all:
+                linter_funcs.after_all(global_options, tool_options)
 
     return len(errors)
