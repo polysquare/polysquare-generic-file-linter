@@ -1,23 +1,24 @@
 language: python
 python:
- - '2.7'
- - '3.4'
- - 'pypy'
- - 'pypy3'
+- '2.7'
+- '3.4'
+- pypy
+- pypy3
 sudo: false
 cache:
   directories:
-    - container
+  - container
 install:
- - eval "$(curl -LSs --connect-timeout 2 --retry 100 public-travis-scripts.polysquare.org/bootstrap.py | python /dev/stdin -d $(pwd)/container -s setup/python/setup.py -e bash -p /dev/stdout)"
+- eval "$(curl -LSs --connect-timeout 2 --retry 100 public-travis-scripts.polysquare.org/bootstrap.py
+  | python /dev/stdin -d $(pwd)/container -s setup/python/setup.py -e bash -p /dev/stdout)"
 script:
- - polysquare_run check/python/check.py --coverage-exclude "*/__init__.py"
+- polysquare_run check/python/check.py --coverage-exclude "*/__init__.py"
 after_success:
- - polysquare_run coverage/python/coverage.py
+- polysquare_run coverage/python/coverage.py
 before_cache:
- - polysquare_cleanup
+- polysquare_cleanup
 before_deploy:
- - polysquare_run deploy/python/deploy.py
+- polysquare_run deploy/python/deploy.py
 deploy:
   provider: pypi
   user:
@@ -27,3 +28,7 @@ deploy:
   on:
     repo: polysquare/polysquare-generic-file-linter
     branch: master
+    python: 2.7
+env:
+  global:
+    secure: eUo+RV8a54JqGZCWVra5+kz8/UvI8UGp9aHimmt3jKx4s2Xs9bOI8AWwe0CxrqTDuXLm1v94C8KZyxTBmnd2grTapDEN2OpvZFAxDbsGM3dGLuepZG2M/EZfn+DBMjSyDluBJrSYle5FaoHBF9uJAZ+YogsX87IErq3qNvPVmGw=
