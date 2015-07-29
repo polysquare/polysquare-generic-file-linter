@@ -2,9 +2,9 @@
 
 ## Status ##
 
-| Travis CI | AppVeyor | Coverage | PyPI |
-|-----------|----------|----------|------|
-|[![Travis](https://img.shields.io/travis/polysquare/polysquare-generic-file-linter.svg)]()|[![AppVeyor](https://img.shields.io/appveyor/ci/smspillaz/polysquare-generic-file-linter.svg)]()|[![Coveralls](https://img.shields.io/coveralls/polysquare/polysquare-generic-file-linter.svg)]()|[![PyPI](https://img.shields.io/pypi/v/polysquare-generic-file-linter.svg)]()[![PyPI](https://img.shields.io/pypi/pyversions/polysquare-generic-file-linter.svg)]()|[![License](https://img.shields.io/github/license/polysquare/polysquare-generic-file-linter.svg)]()|
+| Travis CI (Ubuntu) | AppVeyor (Windows) | Coverage | PyPI | Licence |
+|--------------------|--------------------|----------|------|---------|
+|[![Travis](https://img.shields.io/travis/polysquare/polysquare-generic-file-linter.svg)](http://travis-ci.org/polysquare/polysquare-generic-file-linter)|[![AppVeyor](https://img.shields.io/appveyor/ci/smspillaz/polysquare-generic-file-linter.svg)](https://ci.appveyor.com/project/smspillaz/polysquare-generic-file-linter)|[![Coveralls](https://img.shields.io/coveralls/polysquare/polysquare-generic-file-linter.svg)](http://coveralls.io/polysquare/polysquare-generic-file-linter)|[![PyPIVersion](https://img.shields.io/pypi/v/polysquare-generic-file-linter.svg)](https://pypi.python.org/pypi/polysquare-generic-file-linter)[![PyPIPythons](https://img.shields.io/pypi/pyversions/polysquare-generic-file-linter.svg)](https://pypi.python.org/pypi/polysquare-generic-file-linter)|[![License](https://img.shields.io/github/license/polysquare/polysquare-generic-file-linter.svg)](http://github.com/polysquare/polysquare-generic-file-linter)|
 
 Checks each file passed in for compliance with polysquare style guidelines.
 
