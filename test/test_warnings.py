@@ -92,7 +92,7 @@ class DisableStampingTestCase(TestCase):
 
     """Base TestCase class that explicitly disables job caching."""
 
-    def setUp(self):
+    def setUp(self):  # suppress(N802)
         """Disable job caching."""
         super(DisableStampingTestCase, self).setUp()
         os.environ["_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING"] = "1"
