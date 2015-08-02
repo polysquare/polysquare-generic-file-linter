@@ -22,54 +22,12 @@ import sys
 
 import tempfile
 
+from iocapture import capture
+
 from polysquarelinter import lint_spelling_only
 
 from testtools import TestCase
 from testtools.matchers import DocTestMatches
-
-
-class CapturedOutput(object):  # suppress(too-few-public-methods)
-
-    """Represents the captured contents of stdout and stderr."""
-
-    def __init__(self):
-        """Initialize the class."""
-        super(CapturedOutput, self).__init__()
-        self.stdout = ""
-        self.stderr = ""
-
-        self._stdout_handle = None
-        self._stderr_handle = None
-
-    def __enter__(self):
-        """Start capturing output."""
-        from six import StringIO
-
-        self._stdout_handle = sys.stdout
-        self._stderr_handle = sys.stderr
-
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-
-        return self
-
-    def __exit__(self, exc_type, value, traceback):
-        """Finish capturing output."""
-        del exc_type
-        del value
-        del traceback
-
-        sys.stdout.seek(0)
-        self.stdout = sys.stdout.read()
-
-        sys.stderr.seek(0)
-        self.stderr = sys.stderr.read()
-
-        sys.stdout = self._stdout_handle
-        self._stdout_handle = None
-
-        sys.stderr = self._stderr_handle
-        self._stderr_handle = None
 
 
 def run_with_kwargs_as_switches(func, *args, **kwargs):
@@ -183,30 +141,31 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         with open(self._temporary_file, "w") as f:
             f.write("splelling error\n")
 
-        with CapturedOutput() as captured:
+        with capture() as captured:
             self._run_with_cache(self._temporary_file)
 
-        self.assertThat(captured.stdout,  # suppress(PYC70)
-                        DocTestMatches("""... [file/spelling_error] ...""",
-                                       doctest.ELLIPSIS |
-                                       doctest.NORMALIZE_WHITESPACE |
-                                       doctest.REPORT_NDIFF))
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            DocTestMatches("""... [file/spelling_error] ...""",
+                                           doctest.ELLIPSIS |
+                                           doctest.NORMALIZE_WHITESPACE |
+                                           doctest.REPORT_NDIFF))
 
     def test_report_technical_word_misuse(self):
         """Report technical word misuse."""
         with open(self._temporary_file, "w") as f:
             f.write("technical_looking_word\n")
 
-        with CapturedOutput() as captured:
+        with capture() as captured:
             self._run_with_cache(self._temporary_file,
                                  technical_terms=self._tech_words_file)
 
-        self.assertThat(captured.stdout,  # suppress(PYC70)
-                        # suppress(file/spelling_error)
-                        DocTestMatches("""... technical_looking_word ...""",
-                                       doctest.ELLIPSIS |
-                                       doctest.NORMALIZE_WHITESPACE |
-                                       doctest.REPORT_NDIFF))
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            # suppress(file/spelling_error)
+                            DocTestMatches("""... technical_looking_word"""
+                                           """...""",
+                                           doctest.ELLIPSIS |
+                                           doctest.NORMALIZE_WHITESPACE |
+                                           doctest.REPORT_NDIFF))
 
     def test_exit_success_on_technical_word_found_in_list(self):
         """Exit with success when a technical word is found."""
