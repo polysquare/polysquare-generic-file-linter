@@ -106,7 +106,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         self.patch(sys, "stdout", StringIO())
 
         # Finally, disable caching
-        os.environ["_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING"] = "1"
+        os.environ["JOBSTAMPS_DISABLED"] = "1"
 
     def tearDown(self):  # suppress(N802)
         """Remove temporary file."""
