@@ -25,6 +25,8 @@ import tempfile
 
 from contextlib import contextmanager
 
+from iocapture import capture
+
 from nose_parameterized import parameterized
 
 from polysquarelinter import linter
@@ -48,50 +50,6 @@ class Equals(TTEqMatcher):  # suppress(R0903)
     def comparator(self, expected, other):
         """Check that expected == other."""
         return other == expected
-
-
-class CapturedOutput(object):  # suppress(too-few-public-methods)
-
-    """Represents the captured contents of stdout and stderr."""
-
-    def __init__(self):
-        """Initialize the class."""
-        super(CapturedOutput, self).__init__()
-        self.stdout = ""
-        self.stderr = ""
-
-        self._stdout_handle = None
-        self._stderr_handle = None
-
-    def __enter__(self):
-        """Start capturing output."""
-        from six import StringIO
-
-        self._stdout_handle = sys.stdout
-        self._stderr_handle = sys.stderr
-
-        sys.stdout = StringIO()
-        sys.stderr = StringIO()
-
-        return self
-
-    def __exit__(self, exc_type, value, traceback):
-        """Finish capturing output."""
-        del exc_type
-        del value
-        del traceback
-
-        sys.stdout.seek(0)
-        self.stdout = sys.stdout.read()
-
-        sys.stderr.seek(0)
-        self.stderr = sys.stderr.read()
-
-        sys.stdout = self._stdout_handle
-        self._stdout_handle = None
-
-        sys.stderr = self._stderr_handle
-        self._stderr_handle = None
 
 
 class LinterFailure(Exception):
@@ -304,15 +262,15 @@ class TestLinterAcceptance(TestCase):
 
         doctest_contents = ("... * {0}{1}").format(check, final_ellipsis)
 
-        with CapturedOutput() as captured:
+        with capture() as captured:
             self.patch(sys, "exit", lambda _: None)
             linter.main(["--checks"])
 
-        self.assertThat(captured.stdout,  # suppress(PYC70)
-                        DocTestMatches(doctest_contents,
-                                       doctest.ELLIPSIS |
-                                       doctest.NORMALIZE_WHITESPACE |
-                                       doctest.REPORT_NDIFF))
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            DocTestMatches(doctest_contents,
+                                           doctest.ELLIPSIS |
+                                           doctest.NORMALIZE_WHITESPACE |
+                                           doctest.REPORT_NDIFF))
 
     def test_log_technical_words_over_two_files(self):
         """Check that --log-technical-words combines found technical words."""
