@@ -40,7 +40,6 @@ from polysquarelinter.spelling import (Dictionary,
                                        spellcheckable_and_shadow_contents,
                                        technical_words_from_shadow_contents,
                                        valid_words_set)
-from polysquarelinter.stamp import stamp
 
 try:
     from Queue import Queue
@@ -798,9 +797,9 @@ def _run_lint_on_file_stamped(*args, **kwargs):
     """Run linter functions on file_path, stamping in stamp_file_path."""
     stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args, **kwargs)
 
-    return stamp(_run_lint_on_file_exceptions,
-                 *stamp_args,
-                 **stamp_kwargs)
+    return jobstamp.run(_run_lint_on_file_exceptions,
+                        *stamp_args,
+                        **stamp_kwargs)
 
 
 def _ordered(generator, *args, **kwargs):

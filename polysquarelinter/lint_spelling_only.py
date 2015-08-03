@@ -15,9 +15,10 @@ import sys
 
 import tempfile
 
+from jobstamps import jobstamp
+
 from polysquarelinter import spelling
 from polysquarelinter.spelling import Dictionary, spellcheck_region
-from polysquarelinter.stamp import stamp
 
 
 def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
@@ -136,11 +137,11 @@ def main(arguments=None):  # suppress(unused-function)
                 "jobstamps_cache_output_directory": result.stamp_file_path,
             }
 
-            errors = stamp(spellcheck,
-                           found_file.read(),
-                           result.technical_terms,
-                           result.spellcheck_cache,
-                           **kwargs)
+            errors = jobstamp.run(spellcheck,
+                                  found_file.read(),
+                                  result.technical_terms,
+                                  result.spellcheck_cache,
+                                  **kwargs)
 
             for error in errors:
                 _report_spelling_error(error, file_path)
