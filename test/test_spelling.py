@@ -10,6 +10,8 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
+import atexit
+
 import inspect
 
 import os
@@ -59,11 +61,7 @@ class WordCacheTestCase(TestCase):
         # place our files in.
         word_cache_dir = os.path.join(os.getcwd(), "wordcache")
         cls.cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
-
-    @classmethod
-    def tearDownClass(cls):  # suppress(N802)
-        """Remove temporary directory storing word graph caches."""
-        shutil.rmtree(cls.cache_dir)
+        atexit.register(shutil.rmtree, cls.cache_dir)
 
 
 class TestDictionary(WordCacheTestCase):
@@ -109,14 +107,10 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
         self._current_path = os.getcwd()
         dictionary_dir = os.path.join(self._current_path, "user_dictionary")
         self._user_dictionary_dir = tempfile.mkdtemp(prefix=dictionary_dir)
+        self.addCleanup(shutil.rmtree, self._user_dictionary_dir)
         self.user_dictionary_path = os.path.join(self._user_dictionary_dir,
                                                  "DICTIONARY")
-
-    def tearDown(self):  # suppress(N802)
-        """Remove dictionary and working directory."""
-        os.chdir(self._current_path)
-        shutil.rmtree(self._user_dictionary_dir)
-        super(TestDictionaryWithCustomWords, self).tearDown()
+        self.addCleanup(os.chdir, self._current_path)
 
     def _user_dictionary_set(self):
         """Get words in user dictionary as set."""
