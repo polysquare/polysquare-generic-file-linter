@@ -38,7 +38,6 @@ from testtools.matchers import (Contains,
 # Pychecker complains about the Equals matcher failing to override comparator
 # so do that here
 class Equals(TTEqMatcher):  # suppress(R0903)
-
     """Matcher which tests equality."""
 
     def __init__(self, matchee):
@@ -51,7 +50,6 @@ class Equals(TTEqMatcher):  # suppress(R0903)
 
 
 class WordCacheTestCase(TestCase):
-
     """A test case base class which keeps a word cache from start to finish."""
 
     @classmethod
@@ -65,7 +63,6 @@ class WordCacheTestCase(TestCase):
 
 
 class TestDictionary(WordCacheTestCase):
-
     """Test case for spelling.Dictionary object."""
 
     def test_expected_english_words_corrections(self):
@@ -93,7 +90,6 @@ class TestDictionary(WordCacheTestCase):
 
 
 class TestDictionaryWithCustomWords(WordCacheTestCase):
-
     """Test case for spelling.Dictionary object."""
 
     def __init__(self, *args, **kwargs):
@@ -190,7 +186,6 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
 
 
 class TestSplitSpellcheckableFromShadowContents(TestCase):
-
     """Test case for the spellcheckable_and_shadow_contents function."""
 
     @staticmethod
@@ -261,7 +256,6 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
 
 
 class TestSpellcheckOnRegion(WordCacheTestCase):
-
     """Test cases for spellcheck_region function."""
 
     @classmethod
@@ -423,7 +417,6 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
 
 
 class TestFilterNonspellcheckableTokens(TestCase):
-
     """Test cases for filtering out non-spellcheckable tokens."""
 
     @parameterized.expand(["https://domain.com/u/r/l.ext",
@@ -439,7 +432,6 @@ class TestFilterNonspellcheckableTokens(TestCase):
 
 
 class TestSpellcheckErrors(TestCase):
-
     """Test spellcheck errors."""
 
     def test_sort_by_line_number(self):

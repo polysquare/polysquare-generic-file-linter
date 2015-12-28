@@ -86,7 +86,6 @@ def _comment_system_for_file(contents):
 
 @functools.total_ordering
 class _Marker(namedtuple("Marker", "line col")):
-
     """A marker for a point in a text file. Comparable."""
 
     def __lt__(self, other):
@@ -99,7 +98,6 @@ class _Marker(namedtuple("Marker", "line col")):
 
 @functools.total_ordering
 class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
-
     """A chunk of selected text, starting at line/column."""
 
     # The chunk type.
@@ -347,6 +345,14 @@ SpellcheckerCacheEntry = namedtuple("SpellcheckerCacheEntry",
                                     "corrector reader")
 
 
+def _create_word_graph_file(name, file_storage, word_set):
+    """Create a word graph file and open it in memory."""
+    word_graph_file = file_storage.create_file(name)
+    spelling.wordlist_to_graph_file(sorted(list(word_set)),
+                                    word_graph_file)
+    return copy_to_ram(file_storage).open_file(name)
+
+
 def _spellchecker_for(word_set,
                       name,
                       spellcheck_cache_path=None,
@@ -399,14 +405,11 @@ def _spellchecker_for(word_set,
         try:
             word_graph = copy_to_ram(file_storage).open_file(name)
         except (IOError, NameError):
-            word_graph = file_storage.create_file(name)
-            spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-            word_graph = copy_to_ram(file_storage).open_file(name)
+            word_graph = _create_word_graph_file(name, file_storage, word_set)
+
     else:
         ram_storage = RamStorage()
-        word_graph = ram_storage.create_file(name)
-        spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-        word_graph = ram_storage.open_file(name)
+        word_graph = _create_word_graph_file(name, ram_storage, word_set)
 
     reader = fst.GraphReader(word_graph)
     corrector = spelling.GraphCorrector(reader)
@@ -549,7 +552,6 @@ class SpellcheckError(namedtuple("SpellcheckError",
                                  "column_offset "
                                  "suggestions "
                                  "error_type")):
-
     """A spelling error, relative to a certain region of lines."""
 
     InvalidWord = 0
@@ -604,7 +606,6 @@ def _error_if_symbol_unused(symbol_word,
 
 
 class Dictionary(object):
-
     """A dictionary which can find corrections a word set.
 
     Customize the words available in the dictionary by passing a set of

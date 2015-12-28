@@ -64,7 +64,6 @@ def run_lint_spelling_only_main(filename, **kwargs):
 
 
 class TestLintSpellingOnlyAcceptance(TestCase):
-
     """Acceptance tests for lint_spelling_only.main()."""
 
     def __init__(self, *args, **kwargs):  # pylint:disable=super-on-old-class

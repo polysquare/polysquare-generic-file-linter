@@ -28,7 +28,6 @@ from testtools import (ExpectedException, TestCase)
 
 
 class LinterFailure(Exception):
-
     """Exception raised when the linter reports a message."""
 
     def __init__(self, message, repl):
@@ -91,7 +90,6 @@ def replacement(exception):
 
 
 class DisableStampingTestCase(TestCase):
-
     """Base TestCase class that explicitly disables job caching."""
 
     def setUp(self):  # suppress(N802)
@@ -101,7 +99,6 @@ class DisableStampingTestCase(TestCase):
 
 
 class TestFilenameHeaderWarnings(DisableStampingTestCase):
-
     """Test case for file names being at the top of a header."""
 
     @parameterized.expand(_KNOWN_STYLES)
@@ -194,7 +191,6 @@ class TestFilenameHeaderWarnings(DisableStampingTestCase):
 
 
 class TestSpaceBetweenHeaderAndDescWarnings(DisableStampingTestCase):
-
     """Test case for a single blank comment between top and body of header."""
 
     @parameterized.expand(_KNOWN_STYLES)
@@ -275,7 +271,6 @@ class TestSpaceBetweenHeaderAndDescWarnings(DisableStampingTestCase):
 
 
 class TestSpaceDescAndCopyrightWarnings(DisableStampingTestCase):
-
     """Test case for a single blank comment between bottom and body."""
 
     @parameterized.expand(_KNOWN_STYLES)
@@ -329,7 +324,6 @@ class TestSpaceDescAndCopyrightWarnings(DisableStampingTestCase):
 
 
 class TestCopyrightNotice(DisableStampingTestCase):
-
     """Test case for Copyright notice at end of header block."""
 
     @parameterized.expand(_KNOWN_STYLES)
@@ -413,7 +407,6 @@ class TestCopyrightNotice(DisableStampingTestCase):
 
 
 class TestNewlineAsLastChar(DisableStampingTestCase):
-
     r"""Test case for \n as last char of file."""
 
     @parameterized.expand(_KNOWN_STYLES)
@@ -456,7 +449,6 @@ class TestNewlineAsLastChar(DisableStampingTestCase):
 
 
 class TestTrailingWhitespace(DisableStampingTestCase):
-
     """Test case for trailing whitespace."""
 
     def test_lint_pass(self):
@@ -495,7 +487,6 @@ class TestTrailingWhitespace(DisableStampingTestCase):
 
 
 class TestSpellingErrors(DisableStampingTestCase):
-
     """Test case for spelling errors."""
 
     @classmethod

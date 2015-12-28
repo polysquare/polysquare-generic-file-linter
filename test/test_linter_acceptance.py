@@ -40,7 +40,6 @@ from testtools.matchers import (DocTestMatches,
 # Pychecker complains about the Equals matcher failing to override comparator
 # so do that here
 class Equals(TTEqMatcher):  # suppress(R0903)
-
     """Matcher which tests equality."""
 
     def __init__(self, matchee):
@@ -53,7 +52,6 @@ class Equals(TTEqMatcher):  # suppress(R0903)
 
 
 class LinterFailure(Exception):
-
     """Exception raised when the linter reports a message."""
 
     def __init__(self, message, repl):
@@ -99,7 +97,6 @@ def run_linter_main(filename, **kwargs):
 
 
 class TestLinterAcceptance(TestCase):
-
     """Acceptance tests for linter.main()."""
 
     def __init__(self, *args, **kwargs):  # pylint:disable=super-on-old-class
