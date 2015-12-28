@@ -758,6 +758,8 @@ def _run_lint_on_file_exceptions(file_path,
                                  tool_options,
                                  fix_what_you_can)
     except Exception as exception:
+        sys.stderr.write("""Encountered exception """
+                         """when processing {}\n""".format(file_path))
         traceback.print_exc()
         raise exception
 
