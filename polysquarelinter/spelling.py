@@ -345,6 +345,14 @@ SpellcheckerCacheEntry = namedtuple("SpellcheckerCacheEntry",
                                     "corrector reader")
 
 
+def _create_word_graph_file(name, file_storage, word_set):
+    """Create a word graph file and open it in memory."""
+    word_graph_file = file_storage.create_file(name)
+    spelling.wordlist_to_graph_file(sorted(list(word_set)),
+                                    word_graph_file)
+    return copy_to_ram(file_storage).open_file(name)
+
+
 def _spellchecker_for(word_set,
                       name,
                       spellcheck_cache_path=None,
@@ -397,14 +405,11 @@ def _spellchecker_for(word_set,
         try:
             word_graph = copy_to_ram(file_storage).open_file(name)
         except (IOError, NameError):
-            word_graph = file_storage.create_file(name)
-            spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-            word_graph = copy_to_ram(file_storage).open_file(name)
+            word_graph = _create_word_graph_file(name, file_storage, word_set)
+
     else:
         ram_storage = RamStorage()
-        word_graph = ram_storage.create_file(name)
-        spelling.wordlist_to_graph_file(sorted(list(word_set)), word_graph)
-        word_graph = ram_storage.open_file(name)
+        word_graph = _create_word_graph_file(name, ram_storage, word_set)
 
     reader = fst.GraphReader(word_graph)
     corrector = spelling.GraphCorrector(reader)
