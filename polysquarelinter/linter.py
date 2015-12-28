@@ -467,7 +467,6 @@ def _error_is_suppressed(error, code, contents):
 
 class _LinterFunction(namedtuple("_LinterFunction",
                                  "function before_all after_all")):
-
     """A function and some before/after hooks to be called."""
 
     def __repr__(self):
@@ -553,7 +552,6 @@ def linter_functions_from_filters(whitelist=None,
 
 
 class ShowAvailableChecksAction(argparse.Action):  # pylint:disable=R0903
-
     """If --checks is encountered, just show available checks and exit."""
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -645,7 +643,6 @@ def _should_use_multiprocessing(num_jobs):
 
 
 class ReprQueue(object):
-
     """Queue that has a stable __repr__."""
 
     def __init__(self, queue):
@@ -700,7 +697,6 @@ def tool_options_from_global(global_options, num_jobs):
 
 
 class FileLinterFailure(namedtuple("LinterFailure", "absolute_path failure")):
-
     """A class representing a linter failure as occurring on a file."""
 
     def __lt__(self, other):

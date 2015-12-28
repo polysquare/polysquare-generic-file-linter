@@ -86,7 +86,6 @@ def _comment_system_for_file(contents):
 
 @functools.total_ordering
 class _Marker(namedtuple("Marker", "line col")):
-
     """A marker for a point in a text file. Comparable."""
 
     def __lt__(self, other):
@@ -99,7 +98,6 @@ class _Marker(namedtuple("Marker", "line col")):
 
 @functools.total_ordering
 class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
-
     """A chunk of selected text, starting at line/column."""
 
     # The chunk type.
@@ -549,7 +547,6 @@ class SpellcheckError(namedtuple("SpellcheckError",
                                  "column_offset "
                                  "suggestions "
                                  "error_type")):
-
     """A spelling error, relative to a certain region of lines."""
 
     InvalidWord = 0
@@ -604,7 +601,6 @@ def _error_if_symbol_unused(symbol_word,
 
 
 class Dictionary(object):
-
     """A dictionary which can find corrections a word set.
 
     Customize the words available in the dictionary by passing a set of
