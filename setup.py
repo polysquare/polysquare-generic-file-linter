@@ -40,15 +40,6 @@ setup(name="polysquare-generic-file-linter",
           "Whoosh<=2.6.0"
       ],
       extras_require={
-          "polysquarelint": ["polysquare-setuptools-lint>=0.0.22"],
-          "green": [
-              "iocapture",
-              "nose",
-              "nose-parameterized>=0.5.0",
-              "setuptools-green>=0.0.11",
-              "six",
-              "testtools"
-          ],
           "upload": ["setuptools-markdown"]
       },
       entry_points={
