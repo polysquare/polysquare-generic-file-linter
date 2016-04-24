@@ -175,6 +175,19 @@ class TestLinterAcceptance(TestCase):
 
         self.assertEqual(result, 0)
 
+    def test_handle_empty_files(self):
+        """Handle empty files with appropriate error message."""
+        contents = ""
+
+        with os.fdopen(self._temporary_file[0], "a+") as process_file:
+            process_file.write(contents)
+
+        result = run_linter_main(self._temporary_file[1])
+
+        # There should be a failure exit status, since empty
+        # files will trigger errors in the linter.
+        self.assertEqual(result, 1)
+
     def test_inline_suppressions_beside(self):
         """Check inline suppressions work beside the error-generating line."""
         contents = ("#\n"

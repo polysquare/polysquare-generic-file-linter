@@ -7,6 +7,8 @@
 
 import argparse
 
+import errno
+
 import hashlib
 
 import itertools
@@ -164,6 +166,10 @@ def _find_last_line_index(contents):
     """Find the last line of the headerblock in contents."""
     lineno = 0
     headerblock = re.compile(r"^{0}.*$".format(_ALL_COMMENT))
+
+    if not len(contents):
+        raise RuntimeError("""File does not not have any contents""")
+
     while headerblock.match(contents[lineno]):
         if lineno + 1 == len(contents):
             raise RuntimeError("""No end of headerblock in file""")
@@ -231,10 +237,14 @@ def _newline_end_of_file(relative_path, contents, linter_options):
     del relative_path
     del linter_options
     last_line = len(contents) - 1
-    if not contents[last_line].endswith("\n"):
+    if not len(contents) or not contents[last_line].endswith("\n"):
+        if len(contents):
+            last_line_replacement = contents[last_line] + "\n"
+        else:
+            last_line_replacement = "\n"
         return LinterFailure(r"No \n at end of file",
                              last_line + 1,
-                             "{0}\n".format(contents[last_line]))
+                             last_line_replacement)
 
 
 def _no_trailing_whitespace(relative_path, contents, linter_options):
@@ -393,6 +403,12 @@ def _maybe_log_technical_terms(global_options, tool_options):
                                                     None)
     if log_technical_terms_to_path:
         assert log_technical_terms_to_queue is not None
+
+        try:
+            os.makedirs(os.path.dirname(log_technical_terms_to_path))
+        except OSError as error:
+            if error.errno != errno.EEXIST:
+                raise error
 
         if not log_technical_terms_to_queue.empty():
             with closing(os.fdopen(os.open(log_technical_terms_to_path,
@@ -727,7 +743,8 @@ def _run_lint_on_file(file_path,
         except RuntimeError as err:
             msg = ("""RuntimeError in processing """
                    """{0} - {1}""".format(file_path, str(err)))
-            raise RuntimeError(msg)
+            errors = [("polysquarelinter/failure",
+                       LinterFailure(msg, 0, None))]
 
         if fix_what_you_can:
             for error_index, error in enumerate(errors):

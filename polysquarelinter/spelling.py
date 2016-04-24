@@ -479,6 +479,9 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
     regions and any region which will be subject to spellcheck is denoted
     by a zero in place of that character.
     """
+    if not len(contents):
+        return ([], [])
+
     comment_system = _comment_system_for_file(contents[0])
     begin_comment = comment_system.begin.replace("*", r"\*")
 
