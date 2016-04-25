@@ -10,8 +10,6 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
-import atexit
-
 import doctest
 
 import os
@@ -80,7 +78,11 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         word_cache_dir = os.path.join(os.getcwd(), "spelling_only_wordcache")
         cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
         cls.cache_dir = cache_dir
-        atexit.register(shutil.rmtree, cache_dir)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove cache directories."""
+        shutil.rmtree(cls.cache_dir)
 
     def setUp(self):  # suppress(N802)
         """Create a temporary file."""

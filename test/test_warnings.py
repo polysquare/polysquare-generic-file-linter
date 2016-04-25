@@ -10,8 +10,6 @@
 # See /LICENCE.md for Copyright information
 """Test the linter to ensure that each lint use-case triggers warnings."""
 
-import atexit
-
 import os
 
 import shutil
@@ -496,7 +494,11 @@ class TestSpellingErrors(DisableStampingTestCase):
         # place our files in.
         word_cache_dir = os.path.join(os.getcwd(), "wordcache")
         cls.cache_dir = tempfile.mkdtemp(prefix=word_cache_dir)
-        atexit.register(shutil.rmtree, cls.cache_dir)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove cache directories."""
+        shutil.rmtree(cls.cache_dir)
 
     def _spellcheck_lint(self, text, style):
         """Wrap run_linter_throw and only run spellcheck.
