@@ -122,7 +122,7 @@ def main(arguments=None):  # suppress(unused-function)
     num_errors = 0
     for found_filename in result.files:
         file_path = os.path.abspath(found_filename)
-        with open(file_path, "r+") as found_file:
+        with open(file_path, "r+", encoding="utf-8") as found_file:
             jobstamps_dependencies = [file_path]
 
             if os.path.exists(dictionary_path):
