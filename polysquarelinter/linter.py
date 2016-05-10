@@ -732,8 +732,8 @@ def _run_lint_on_file(file_path,
     If fix_what_you_can is specified, then the first error that has a
     possible replacement will be automatically fixed on this file.
     """
-    with open(file_path, "r+", encoding="utf-8") as found_file:
-        file_contents = found_file.read()
+    with open(file_path, "r+") as found_file:
+        file_contents = found_file.read().decode("utf-8")
         file_lines = file_contents.splitlines(True)
         try:
             errors = lint(file_path[len(os.getcwd()) + 1:],
