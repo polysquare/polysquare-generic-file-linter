@@ -647,7 +647,7 @@ def _apply_replacement(error, found_file, file_lines):
 
     # Only fix one error at a time
     found_file.seek(0)
-    found_file.write(concatenated_fixed_lines)
+    found_file.write(concatenated_fixed_lines.encode("utf-8"))
     found_file.truncate()
 
 
