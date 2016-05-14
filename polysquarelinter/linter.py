@@ -37,11 +37,10 @@ import parmap
 
 from polysquarelinter.spelling import (Dictionary,
                                        SpellcheckError,
-                                       read_dictionary_file,
                                        spellcheck_region,
                                        spellcheckable_and_shadow_contents,
-                                       technical_words_from_shadow_contents,
-                                       valid_words_set)
+                                       technical_words_from_shadow_contents,)
+import polysquarelinter.valid_words_dictionary as valid_words_dictionary_helper
 
 try:
     from Queue import Queue
@@ -339,19 +338,6 @@ def _find_spelling_errors_in_chunks(chunks,
                                            msg)
 
 
-def _create_valid_words_dictionary(spellchecker_cache_path):
-    """Create a Dictionary at spellchecker_cache_path with valid words."""
-    user_dictionary = os.path.join(os.getcwd(), "DICTIONARY")
-    user_words = read_dictionary_file(user_dictionary)
-
-    valid_words = Dictionary(valid_words_set(user_dictionary, user_words),
-                             "valid_words",
-                             [user_dictionary],
-                             spellchecker_cache_path)
-
-    return (user_words, valid_words)
-
-
 # suppress(invalid-name)
 def _create_technical_words_dictionary(spellchecker_cache_path,
                                        relative_path,
@@ -373,7 +359,7 @@ def _construct_user_dictionary(global_options, tool_options):
     del global_options
 
     spellchecker_cache_path = tool_options.get("spellcheck_cache", None)
-    _create_valid_words_dictionary(spellchecker_cache_path)
+    valid_words_dictionary_helper.create(spellchecker_cache_path)
 
 
 def _drain(queue_to_drain, sentinel=None):
@@ -433,7 +419,7 @@ def _no_spelling_errors(relative_path, contents, linter_options):
     chunks, shadow = spellcheckable_and_shadow_contents(contents,
                                                         block_regexps)
     cache = linter_options.get("spellcheck_cache", None)
-    user_words, valid_words = _create_valid_words_dictionary(cache)
+    user_words, valid_words = valid_words_dictionary_helper.create(cache)
     technical_words = _create_technical_words_dictionary(cache,
                                                          relative_path,
                                                          user_words,
