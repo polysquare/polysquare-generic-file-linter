@@ -11,6 +11,8 @@ import errno
 
 import hashlib
 
+import io
+
 import itertools
 
 import multiprocessing
@@ -633,7 +635,7 @@ def _apply_replacement(error, found_file, file_lines):
 
     # Only fix one error at a time
     found_file.seek(0)
-    found_file.write(concatenated_fixed_lines.encode("utf-8"))
+    found_file.write(concatenated_fixed_lines)
     found_file.truncate()
 
 
@@ -718,8 +720,8 @@ def _run_lint_on_file(file_path,
     If fix_what_you_can is specified, then the first error that has a
     possible replacement will be automatically fixed on this file.
     """
-    with open(file_path, "rb+") as found_file:
-        file_contents = found_file.read().decode("utf-8")
+    with io.open(file_path, "r+", encoding="utf-8") as found_file:
+        file_contents = found_file.read()
         file_lines = file_contents.splitlines(True)
         try:
             errors = lint(file_path[len(os.getcwd()) + 1:],
