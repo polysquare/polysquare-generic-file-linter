@@ -45,7 +45,9 @@ setup(name="polysquare-generic-file-linter",
       entry_points={
           "console_scripts": [
               "polysquare-generic-file-linter=polysquarelinter.linter:main",
-              "spellcheck-linter=polysquarelinter.lint_spelling_only:main"
+              "spellcheck-linter=polysquarelinter.lint_spelling_only:main",
+              "polysquare-generic-file-linter-populate-cache="
+              "polysquarelinter.valid_words_dictionary:_cause_cache_population"
           ]
       },
       test_suite="nose.collector",
