@@ -9,6 +9,8 @@ import argparse
 
 import hashlib
 
+import io
+
 import os
 
 import sys
@@ -122,7 +124,7 @@ def main(arguments=None):  # suppress(unused-function)
     num_errors = 0
     for found_filename in result.files:
         file_path = os.path.abspath(found_filename)
-        with open(file_path, "rb+") as found_file:
+        with io.open(file_path, "r+", encoding="utf-8") as found_file:
             jobstamps_dependencies = [file_path]
 
             if os.path.exists(dictionary_path):
@@ -138,7 +140,7 @@ def main(arguments=None):  # suppress(unused-function)
             }
 
             errors = jobstamp.run(spellcheck,
-                                  found_file.read().decode("utf-8"),
+                                  found_file.read(),
                                   result.technical_terms,
                                   result.spellcheck_cache,
                                   **kwargs)
