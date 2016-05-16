@@ -801,6 +801,8 @@ def _run_lint_on_file_stamped(*args):
     # We pass an empty dictionary as keyword arguments here to work
     # around a bug in frosted, which crashes when no keyword arguments
     # are passed
+    #
+    # suppress(E204)
     stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args,
                                                               **{})
 
@@ -826,6 +828,7 @@ def _any_would_run(func, filenames, *args):
         return True
 
     for filename in filenames:
+        # suppress(E204)
         stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(filename,
                                                                   *args,
                                                                   **{})
