@@ -796,9 +796,15 @@ def _run_lint_on_file_stamped_args(file_path,  # suppress(too-many-arguments)
             kwargs)
 
 
-def _run_lint_on_file_stamped(*args, **kwargs):
+def _run_lint_on_file_stamped(*args):
     """Run linter functions on file_path, stamping in stamp_file_path."""
-    stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args, **kwargs)
+    # We pass an empty dictionary as keyword arguments here to work
+    # around a bug in frosted, which crashes when no keyword arguments
+    # are passed
+    #
+    # suppress(E204)
+    stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args,
+                                                              **{})
 
     return jobstamp.run(_run_lint_on_file_exceptions,
                         *stamp_args,
@@ -816,15 +822,16 @@ def _ordered(generator, *args, **kwargs):
     return result
 
 
-def _any_would_run(func, filenames, *args, **kwargs):
+def _any_would_run(func, filenames, *args):
     """True if a linter function would be called on any of filenames."""
     if os.environ.get("_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING", None):
         return True
 
     for filename in filenames:
+        # suppress(E204)
         stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(filename,
                                                                   *args,
-                                                                  **kwargs)
+                                                                  **{})
         dependency = jobstamp.out_of_date(func,
                                           *stamp_args,
                                           **stamp_kwargs)
