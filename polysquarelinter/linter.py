@@ -796,9 +796,9 @@ def _run_lint_on_file_stamped_args(file_path,  # suppress(too-many-arguments)
             kwargs)
 
 
-def _run_lint_on_file_stamped(*args, **kwargs):
+def _run_lint_on_file_stamped(*args):
     """Run linter functions on file_path, stamping in stamp_file_path."""
-    stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args, **kwargs)
+    stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(*args)
 
     return jobstamp.run(_run_lint_on_file_exceptions,
                         *stamp_args,
@@ -816,15 +816,14 @@ def _ordered(generator, *args, **kwargs):
     return result
 
 
-def _any_would_run(func, filenames, *args, **kwargs):
+def _any_would_run(func, filenames, *args):
     """True if a linter function would be called on any of filenames."""
     if os.environ.get("_POLYSQUARE_GENERIC_FILE_LINTER_NO_STAMPING", None):
         return True
 
     for filename in filenames:
         stamp_args, stamp_kwargs = _run_lint_on_file_stamped_args(filename,
-                                                                  *args,
-                                                                  **kwargs)
+                                                                  *args)
         dependency = jobstamp.out_of_date(func,
                                           *stamp_args,
                                           **stamp_kwargs)
