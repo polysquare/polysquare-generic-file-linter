@@ -47,7 +47,7 @@ setup(name="polysquare-generic-file-linter",
               "polysquare-generic-file-linter=polysquarelinter.linter:main",
               "spellcheck-linter=polysquarelinter.lint_spelling_only:main",
               "polysquare-generic-file-linter-populate-cache="
-              "polysquarelinter.valid_words_dictionary:_cause_cache_population"
+              "polysquarelinter.cache_populate:main"
           ]
       },
       test_suite="nose.collector",

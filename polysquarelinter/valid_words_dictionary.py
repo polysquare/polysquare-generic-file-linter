@@ -1,16 +1,12 @@
 # /polysquarelinter/valid_words_dictionary.py
 #
-# Helper module to create caches and a Dictionary for technical
-# words as well as regular english words.
+# Helper module to create caches and a Dictionary for regular english words
+# and any user defined words.
 #
 # See /LICENCE.md for Copyright information
-"""Main module for linter."""
-
-import argparse
+"""Helper module to create caches for ordinary and user defined words."""
 
 import os
-
-import sys
 
 from polysquarelinter.spelling import (Dictionary,
                                        read_dictionary_file,
@@ -28,18 +24,3 @@ def create(spellchecker_cache_path):
                              spellchecker_cache_path)
 
     return (user_words, valid_words)
-
-
-def _cause_cache_population():  # suppress(unused-function)
-    """Cause the cache to be populated with valid words."""
-    description = ("""Pre-populate cache for polysquare-generic-file-linter """
-                   """and spellcheck-linter.""")
-    parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("cache_path",
-                        nargs="*",
-                        metavar=("PATH"),
-                        help="""PATH to cache""",
-                        type=str)
-    arguments = parser.parse_args(sys.argv[1:])
-    create(arguments.cache_path[0])
-    return 0
