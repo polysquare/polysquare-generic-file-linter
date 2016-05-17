@@ -19,8 +19,10 @@ import tempfile
 
 from jobstamps import jobstamp
 
-from polysquarelinter import spelling
-from polysquarelinter.spelling import Dictionary, spellcheck_region
+from polysquarelinter import (spelling,
+                              technical_words_dictionary,
+                              valid_words_dictionary)
+from polysquarelinter.spelling import spellcheck_region
 
 
 def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
@@ -39,27 +41,9 @@ def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     """
     contents = spelling.filter_nonspellcheckable_tokens(contents)
     lines = contents.splitlines(True)
-    user_dictionary = os.path.join(os.getcwd(), "DICTIONARY")
-    user_words = spelling.read_dictionary_file(user_dictionary)
-
-    valid_words = Dictionary(spelling.valid_words_set(user_dictionary,
-                                                      user_words),
-                             "valid_words",
-                             dictionary_sources=[user_dictionary],
-                             cache=spellcheck_cache)
-
-    # By default, include the user dictionary in the technical terms available.
-    technical_terms_set = user_words
-
-    if technical_terms:
-        with open(technical_terms) as tech_tf:
-            technical_terms_set |= set(tech_tf.read().splitlines())
-
-    technical_words = Dictionary(technical_terms_set,
-                                 "technical_words",
-                                 dictionary_sources=[technical_terms,
-                                                     user_dictionary],
-                                 cache=spellcheck_cache)
+    user_words, valid_words = valid_words_dictionary.create(spellcheck_cache)
+    technical_words = technical_words_dictionary.create(technical_terms,
+                                                        spellcheck_cache)
 
     return sorted([e for e in spellcheck_region(lines,
                                                 valid_words,
