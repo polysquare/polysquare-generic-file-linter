@@ -368,6 +368,8 @@ def _spellchecker_for(word_set,
     are newer than the stored word graph. If they are newer, then the word
     graph gets repopulated.
     """
+    assert "/" not in name and "\\" not in name
+
     if _spellchecker_cache.get(name, None) is not None:
         return _spellchecker_cache[name].corrector
 
@@ -631,7 +633,7 @@ class Dictionary(object):
         super(Dictionary, self).__init__()
         self._words = words
         self._corrector = _spellchecker_for(words,
-                                            name,
+                                            re.sub(r"[\/\\]", "_", name),
                                             cache,
                                             sources=dictionary_sources)
 

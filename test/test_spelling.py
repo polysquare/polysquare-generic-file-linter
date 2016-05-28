@@ -114,6 +114,12 @@ class TestDictionaryWithCustomWords(WordCacheTestCase):
         """Get words in user dictionary as set."""
         return spelling.read_dictionary_file(self.user_dictionary_path)
 
+    def test_create_dictionary_with_slashes(self):
+        """Dictionary name can contain slashes."""
+        valid_words = spelling.valid_words_set(self.user_dictionary_path,
+                                               self._user_dictionary_set())
+        spelling.Dictionary(valid_words, "has/slashes\\here/")
+
     def test_spellcheck_without_cache(self):
         """Run spellcheck without cache.
 
