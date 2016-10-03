@@ -224,8 +224,15 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
 
         self.assertEqual(chunks[1].data[0], " checkable ")
 
-    def test_single_quoted_regions_not_found_in_shadow_contents(self):
-        """Single quoted chunk is not found in shadow contents."""
+    def test_partial_quotes_in_comment_out_markers(self):
+        """Handle comment out points occurring before in points."""
+        contents = "/* ' */\n*/ spell /* checkable */\n shadow".splitlines()
+        chunks, _ = spelling.spellcheckable_and_shadow_contents(contents)
+
+        self.assertEqual(chunks[1].data[0], " checkable ")
+
+    def test_single_quoted_regions_found_in_shadow_contents(self):
+        """Single quoted chunk is found in shadow contents."""
         contents = "# spellcheckable\n 'quoted' shadow".splitlines()
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
