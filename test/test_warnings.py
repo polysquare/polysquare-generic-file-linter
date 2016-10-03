@@ -299,7 +299,7 @@ class TestSpaceDescAndCopyrightWarnings(DisableStampingTestCase):
 
     @parameterized.expand(_KNOWN_STYLES)
     def test_lint_fail_no_headerblock(self, style):
-        """RuntimeError where file does not have headerblock."""
+        """Runtime error where file does not have headerblock."""
         with ExpectedException(RuntimeError):
             run_linter_throw("path/to/file",
                              "\n",

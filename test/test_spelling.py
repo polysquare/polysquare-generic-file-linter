@@ -293,7 +293,7 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
         return (valid_words, technical_words)
 
     def test_exception_on_failure_to_detect_comment_system(self):
-        """RuntimeError raised when comment system can't be detected."""
+        """Runtime error raised when comment system can't be detected."""
         contents = "no comment system"
         with ExpectedException(RuntimeError):
             valid, technical = self.__class__.get_dictionaries(contents)
