@@ -66,19 +66,22 @@ def clear_caches():  # suppress(unused-function)
     _user_dictionary_cache.clear()
 
 
-FileCommentSystem = namedtuple("FileCommentSystem", "begin middle end")
+FileCommentSystem = namedtuple("FileCommentSystem", "begin middle end single")
 
 
 def _comment_system_for_file(contents):
     """For file contents, return the comment system."""
     if contents[0] == "#":
-        return FileCommentSystem(begin="#", middle="", end="")
+        return FileCommentSystem(begin="#", middle="", end="", single="#")
     elif contents[:2] == "/*":
-        return FileCommentSystem(begin="/*", middle="*", end="*/")
+        return FileCommentSystem(begin="/*", middle="*", end="*/", single="//")
     elif contents[:2] == "//":
-        return FileCommentSystem(begin="//", middle="//", end="")
+        return FileCommentSystem(begin="//", middle="//", end="", single="//")
     elif contents[:3] == "rem":
-        return FileCommentSystem(begin="rem", middle="rem", end="")
+        return FileCommentSystem(begin="rem",
+                                 middle="rem",
+                                 end="",
+                                 single="rem")
     else:
         raise RuntimeError("Couldn't detect comment "
                            "system from {0}".format(contents[:3]))
