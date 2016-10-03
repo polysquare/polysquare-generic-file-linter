@@ -224,21 +224,28 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
 
         self.assertEqual(chunks[1].data[0], " checkable ")
 
-    def test_single_quoted_regions_not_found_in_shadow_contents(self):
-        """Single quoted chunk is not found in shadow contents."""
+    def test_partial_quotes_in_comment_out_markers(self):
+        """Handle comment out points occurring before in points."""
+        contents = "/* ' */\n*/ spell /* checkable */\n shadow".splitlines()
+        chunks, _ = spelling.spellcheckable_and_shadow_contents(contents)
+
+        self.assertEqual(chunks[1].data[0], " checkable ")
+
+    def test_single_quoted_regions_found_in_shadow_contents(self):
+        """Single quoted chunk is found in shadow contents."""
         contents = "# spellcheckable\n 'quoted' shadow".splitlines()
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
         self.assertThat(self.__class__.shadow_contents_to_string(shadow),
-                        Not(Contains("quoted")))
+                        Contains("quoted"))
 
-    def test_double_quoted_regions_not_found_in_shadow_contents(self):
-        """Double quoted chunk is not found in shadow contents."""
+    def test_double_quoted_regions_found_in_shadow_contents(self):
+        """Double quoted chunk is found in shadow contents."""
         contents = "# spellcheckable\n \"quoted\" shadow".splitlines()
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
         self.assertThat(self.__class__.shadow_contents_to_string(shadow),
-                        Not(Contains("quoted")))
+                        Contains("quoted"))
 
     @parameterized.expand(list(" .=[](){}<>"))
     def test_split_technical_words_from_shadow_contents(self, character):
@@ -286,7 +293,7 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
         return (valid_words, technical_words)
 
     def test_exception_on_failure_to_detect_comment_system(self):
-        """RuntimeError raised when comment system can't be detected."""
+        """Runtime error raised when comment system can't be detected."""
         contents = "no comment system"
         with ExpectedException(RuntimeError):
             valid, technical = self.__class__.get_dictionaries(contents)

@@ -31,8 +31,6 @@ import errno
 
 import functools
 
-import itertools
-
 import os
 
 import re
@@ -66,19 +64,22 @@ def clear_caches():  # suppress(unused-function)
     _user_dictionary_cache.clear()
 
 
-FileCommentSystem = namedtuple("FileCommentSystem", "begin middle end")
+FileCommentSystem = namedtuple("FileCommentSystem", "begin middle end single")
 
 
 def _comment_system_for_file(contents):
     """For file contents, return the comment system."""
     if contents[0] == "#":
-        return FileCommentSystem(begin="#", middle="", end="")
+        return FileCommentSystem(begin="#", middle="", end="", single="#")
     elif contents[:2] == "/*":
-        return FileCommentSystem(begin="/*", middle="*", end="*/")
+        return FileCommentSystem(begin="/*", middle="*", end="*/", single="//")
     elif contents[:2] == "//":
-        return FileCommentSystem(begin="//", middle="//", end="")
+        return FileCommentSystem(begin="//", middle="//", end="", single="//")
     elif contents[:3] == "rem":
-        return FileCommentSystem(begin="rem", middle="rem", end="")
+        return FileCommentSystem(begin="rem",
+                                 middle="rem",
+                                 end="",
+                                 single="rem")
     else:
         raise RuntimeError("Couldn't detect comment "
                            "system from {0}".format(contents[:3]))
@@ -463,6 +464,183 @@ def _shadow_contents_from_chunks(contents, chunks, block_out_regexes=None):
     return shadow_contents
 
 
+STATE_IN_TEXT = 0
+STATE_IN_QUOTE = 1
+STATE_IN_COMMENT = 2
+
+
+def _chunk_from_ranges(contents_lines,
+                       start_line_index,
+                       start_column_index,
+                       end_line_index,
+                       end_column_index):
+    """Create a _ChunkInfo from a range of lines and columns.
+
+    :contents_lines: is the raw lines of a file.
+    """
+    # If the start and end line are the same we have to compensate for
+    # that by subtracting start_column_index from end_column_index
+    if start_line_index == end_line_index:
+        end_column_index -= start_column_index
+
+    lines = contents_lines[start_line_index:end_line_index + 1]
+    lines[0] = lines[0][start_column_index:]
+    lines[-1] = lines[-1][:end_column_index]
+
+    return _ChunkInfo(start_line_index,
+                      start_column_index,
+                      lines,
+                      _ChunkInfo.Real)
+
+
+def _token_at_col_in_line(line, column, token, token_len=None):
+    """True if token is at column."""
+    if not token_len:
+        token_len = len(token)
+
+    remaining_len = len(line) - column
+
+    return (remaining_len >= token_len and
+            line[column:column + token_len] == token)
+
+
+def _is_escaped(line, column, is_escaped):
+    """True if token is escaped."""
+    return line[column] in ["\"", "'"] and is_escaped
+
+
+def _transition_from_text_func(comment_system):
+    """Return function that causes state transition for comment_system."""
+    start_len = len(comment_system.begin)
+    single_len = len(comment_system.single)
+
+    begin = comment_system.begin
+    single = comment_system.single
+
+    def _transition_from_text(line, line_index, column, is_escaped):
+        """Return the new state of the comment parser."""
+        if (_token_at_col_in_line(line, column, single, single_len)):
+            return (STATE_IN_COMMENT,
+                    (line_index, column + single_len),
+                    None,
+                    True)
+        elif (_token_at_col_in_line(line, column, begin, start_len)):
+            return (STATE_IN_COMMENT,
+                    (line_index, column + single_len),
+                    comment_system.end,
+                    False)
+        elif (_token_at_col_in_line(line, column, "\"") or
+              _token_at_col_in_line(line, column, "'") and
+              not _is_escaped(line, column, is_escaped)):
+            # Check here to see whether this is a quote or if this
+            # is a spellcheckable line
+            if (_token_at_col_in_line(line, column, "\"\"\"") or
+                    _token_at_col_in_line(line, column, "'''")):
+                return (STATE_IN_COMMENT,
+                        (line_index, column + 3),
+                        line[column:column + 3],
+                        False)
+            else:
+                return (STATE_IN_QUOTE,
+                        None,
+                        line[column:column + 1],
+                        False)
+
+        return (STATE_IN_TEXT,
+                None,
+                None,
+                False)
+
+    return _transition_from_text
+
+
+def _find_spellcheckable_chunks(contents,
+                                comment_system):
+    """Given some contents for a file, find chunks that can be spellchecked.
+
+    This applies the following rules:
+     1. If the comment system comments individual lines, that whole line
+        can be spellchecked from the point of the comment
+     2. If a comment-start marker or triple quote is found, keep going
+        until a comment end marker or matching triple quote is found.
+    """
+    waiting_until = None
+    waiting_until_eol = False
+    state = STATE_IN_TEXT
+
+    transition_from_text = _transition_from_text_func(comment_system)
+
+    start_state_from = None
+
+    chunks = []
+    for line_index, line in enumerate(contents):
+        # We hit a new line. If we were waiting until the end of the line
+        # then add a new chunk in here, otherwise continue
+        if waiting_until_eol:
+            chunks.append(_chunk_from_ranges(contents,
+                                             start_state_from[0],
+                                             start_state_from[1],
+                                             line_index - 1,
+                                             len(contents[line_index - 1])))
+            waiting_until_eol = False
+            state = STATE_IN_TEXT
+
+        line_len = len(line)
+        escape_next = False
+
+        for column in range(0, line_len):
+            # Check if the next character should be considered as escaped. That
+            # only happens if we are not escaped and the current character is
+            # a backslash.
+            is_escaped = escape_next
+            escape_next = not is_escaped and line[column] == "\\"
+
+            if state == STATE_IN_TEXT:
+                (state,
+                 start_state_from,
+                 waiting_until,
+                 waiting_until_eol) = transition_from_text(line,
+                                                           line_index,
+                                                           column,
+                                                           is_escaped)
+            elif state == STATE_IN_COMMENT:
+                if not waiting_until_eol:
+                    wait_until_len = len(waiting_until)
+                    if (_token_at_col_in_line(line,
+                                              column,
+                                              waiting_until,
+                                              wait_until_len) and
+                            not _is_escaped(line, column, is_escaped)):
+                        state = STATE_IN_TEXT
+                        waiting_until = None
+                        chunks.append(_chunk_from_ranges(contents,
+                                                         start_state_from[0],
+                                                         start_state_from[1],
+                                                         line_index,
+                                                         column))
+            elif state == STATE_IN_QUOTE:
+                wait_until_len = len(waiting_until)
+                if (_token_at_col_in_line(line,
+                                          column,
+                                          waiting_until,
+                                          wait_until_len) and
+                        not _is_escaped(line, column, is_escaped)):
+                    state = STATE_IN_TEXT
+                    waiting_until = None
+            else:
+                raise RuntimeError("""Unreachable section""")
+
+    if waiting_until_eol:
+        chunks.append(_chunk_from_ranges(contents,
+                                         start_state_from[0],
+                                         start_state_from[1],
+                                         line_index,
+                                         column))
+        waiting_until_eol = False
+
+    return chunks
+
+
 # There doesn't seem to be a shorter name that can be given to this function
 # which also retains its descriptive value. The function return both
 # the spellcheckable contents and the remaining contents which are not
@@ -485,29 +663,9 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
         return ([], [])
 
     comment_system = _comment_system_for_file(contents[0])
-    begin_comment = comment_system.begin.replace("*", r"\*")
-
-    if comment_system.end == "":
-        end_comment = None
-    else:
-        end_comment = comment_system.end.replace("*", r"\*")
-
-    iterables = [
-        _find_chunks(contents,
-                     r"(?<![^\\]\\)\"",
-                     r"(?<![^\\]\\)\"",
-                     _ChunkInfo.Shadow),
-        _find_chunks(contents,
-                     r"(?<![^\\]\\)'",
-                     r"(?<![^\\]\\)'",
-                     _ChunkInfo.Shadow),
-        _find_chunks(contents, r"\"\"\"", r"\"\"\"", _ChunkInfo.Real),
-        _find_chunks(contents, r"'''", r"'''", _ChunkInfo.Real),
-        _find_chunks(contents, begin_comment, end_comment, _ChunkInfo.Real)
-    ]
 
     # Shadow contents excludes anything in quotes
-    chunks = _filter_overlapping_chunks(list(itertools.chain(*iterables)))
+    chunks = _find_spellcheckable_chunks(contents, comment_system)
     shadow_contents = _shadow_contents_from_chunks(contents,
                                                    chunks,
                                                    block_out_regexes)
