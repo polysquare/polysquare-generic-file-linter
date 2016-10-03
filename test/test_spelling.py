@@ -237,15 +237,15 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
         self.assertThat(self.__class__.shadow_contents_to_string(shadow),
-                        Not(Contains("quoted")))
+                        Contains("quoted"))
 
-    def test_double_quoted_regions_not_found_in_shadow_contents(self):
-        """Double quoted chunk is not found in shadow contents."""
+    def test_double_quoted_regions_found_in_shadow_contents(self):
+        """Double quoted chunk is found in shadow contents."""
         contents = "# spellcheckable\n \"quoted\" shadow".splitlines()
         _, shadow = spelling.spellcheckable_and_shadow_contents(contents)
 
         self.assertThat(self.__class__.shadow_contents_to_string(shadow),
-                        Not(Contains("quoted")))
+                        Contains("quoted"))
 
     @parameterized.expand(list(" .=[](){}<>"))
     def test_split_technical_words_from_shadow_contents(self, character):
