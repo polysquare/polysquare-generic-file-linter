@@ -430,6 +430,17 @@ class TestSpellcheckOnRegion(WordCacheTestCase):
         self.assertThat(errors[0].suggestions,
                         Not(Contains("spl_lling")))
 
+    def test_spelling_errors_inside_triple_quotes(self):
+        """Catch spelling errors inside of triple quotes."""
+        contents = "#\n\"\"\"splelling\"\"\"".splitlines()
+        valid, technical = self.__class__.get_dictionaries(contents)
+
+        errors = [e for e in spelling.spellcheck_region(contents,
+                                                        valid,
+                                                        technical)]
+        self.assertThat(errors[0].suggestions,
+                        Contains("spelling"))
+
 
 class TestFilterNonspellcheckableTokens(TestCase):
     """Test cases for filtering out non-spellcheckable tokens."""
