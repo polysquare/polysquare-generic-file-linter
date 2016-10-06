@@ -542,7 +542,7 @@ def _transition_from_text_func(comment_system):
                         False)
             else:
                 return (STATE_IN_QUOTE,
-                        None,
+                        (line_index, column + 1),
                         line[column:column + 1],
                         False)
 
@@ -588,12 +588,14 @@ def _find_spellcheckable_chunks(contents,
         line_len = len(line)
         escape_next = False
 
-        for column in range(0, line_len):
+        column = 0
+        while column < line_len:
             # Check if the next character should be considered as escaped. That
             # only happens if we are not escaped and the current character is
             # a backslash.
             is_escaped = escape_next
             escape_next = not is_escaped and line[column] == "\\"
+            last_state = state
 
             if state == STATE_IN_TEXT:
                 (state,
@@ -603,6 +605,14 @@ def _find_spellcheckable_chunks(contents,
                                                            line_index,
                                                            column,
                                                            is_escaped)
+
+                # We need to move ahead by a certain number of characters
+                # if we hit a new state
+                if last_state != state:
+                    column = start_state_from[1]
+                else:
+                    column += 1
+
             elif state == STATE_IN_COMMENT:
                 if not waiting_until_eol:
                     wait_until_len = len(waiting_until)
@@ -612,12 +622,23 @@ def _find_spellcheckable_chunks(contents,
                                               wait_until_len) and
                             not _is_escaped(line, column, is_escaped)):
                         state = STATE_IN_TEXT
-                        waiting_until = None
                         chunks.append(_chunk_from_ranges(contents,
                                                          start_state_from[0],
                                                          start_state_from[1],
                                                          line_index,
                                                          column))
+
+                        # Skip ahead to end of this token
+                        column += len(waiting_until)
+                        start_state_from = None
+                        waiting_until = None
+                    else:
+                        # Move ahead by a single character here
+                        column += 1
+                else:
+                    # Can't do anything but move ahead by a single character
+                    column += 1
+
             elif state == STATE_IN_QUOTE:
                 wait_until_len = len(waiting_until)
                 if (_token_at_col_in_line(line,
@@ -626,7 +647,12 @@ def _find_spellcheckable_chunks(contents,
                                           wait_until_len) and
                         not _is_escaped(line, column, is_escaped)):
                     state = STATE_IN_TEXT
+                    start_state_from = None
                     waiting_until = None
+
+                # Always increment by one, since quotes only ever have a
+                # length of one
+                column += 1
             else:
                 raise RuntimeError("""Unreachable section""")
 
