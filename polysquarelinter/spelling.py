@@ -409,13 +409,11 @@ def _transition_from_text_func(comment_system):
         if _token_at_col_in_line(line, column, single, single_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
-                    None,
-                    True)
+                    ParserState.EOL)
         elif _token_at_col_in_line(line, column, begin, start_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
-                    comment_system.end,
-                    False)
+                    comment_system.end)
         elif (_token_at_col_in_line(line, column, "\"") or
               _token_at_col_in_line(line, column, "'") and
               not _is_escaped(line, column, is_escaped)):
@@ -425,20 +423,117 @@ def _transition_from_text_func(comment_system):
                     _token_at_col_in_line(line, column, "'''")):
                 return (STATE_IN_COMMENT,
                         (line_index, column + 3),
-                        line[column:column + 3],
-                        False)
+                        line[column:column + 3])
             else:
                 return (STATE_IN_QUOTE,
                         (line_index, column + 1),
-                        line[column:column + 1],
-                        False)
+                        line[column:column + 1])
 
         return (STATE_IN_TEXT,
-                None,
-                None,
-                False)
+                (0, 0),
+                None)
 
     return _transition_from_text
+
+
+class ParserState(object):
+    """An immutable object to represent the state of the comment parser
+
+    The comment parser moves from left to right over the entire file
+    buffer. Its state might change depending on whether or not it hits
+    a new line or a comment character.
+    """
+
+    EOL = 1
+
+    def __init__(self, started_at, state_type, waiting_until):
+        """Initialize this ParserState."""
+        super(ParserState, self).__init__()
+        self._started_at = started_at
+        self.type = state_type
+        self._waiting_until = waiting_until
+
+    def get_transition(self,
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       transition_from_text,
+                       eof=False):
+        """Return a parser state, a move-ahead amount, and an append range.
+
+        If this parser state should terminate and return back to
+        the TEXT state, then return that state and also any corresponding
+        chunk that would have been yielded as a result.
+        """
+        if self.type == STATE_IN_TEXT:
+            (state,
+             start_state_from,
+             waiting_until) = transition_from_text(line,
+                                                   line_index,
+                                                   column,
+                                                   is_escaped)
+
+            # We need to move ahead by a certain number of characters
+            # if we hit a new state
+            if self.type != state:
+                return (ParserState(start_state_from, state, waiting_until),
+                        start_state_from[1] - column,
+                        None)
+            else:
+                return (self, 1, None)
+        elif self.type == STATE_IN_COMMENT:
+            if self._waiting_until != ParserState.EOL:
+                wait_until_len = len(self._waiting_until)
+                if (_token_at_col_in_line(line,
+                                          column,
+                                          self._waiting_until,
+                                          wait_until_len) and
+                        not _is_escaped(line, column, is_escaped)):
+
+                    # Skip ahead to end of this token
+                    return (ParserState((0, 0), STATE_IN_TEXT, None),
+                            len(self._waiting_until),
+                            self._started_at)
+            elif self._waiting_until == ParserState.EOL and column == 0:
+                # We hit a new line and the state ends here. Return
+                # corresponding state
+                return (ParserState((0, 0), STATE_IN_TEXT, None),
+                        0,
+                        self._started_at)
+            elif eof:
+                # We hit the end of the file and were still in a comment
+                # state. Grab everything up to here.
+                return (ParserState((0, 0), STATE_IN_TEXT, None),
+                        0,
+                        self._started_at)
+
+            # Move ahead by one character otherwise
+            return (self, 1, None)
+        elif self.type == STATE_IN_QUOTE:
+            wait_until_len = len(self._waiting_until)
+            if (_token_at_col_in_line(line,
+                                      column,
+                                      self._waiting_until,
+                                      wait_until_len) and
+                    not _is_escaped(line, column, is_escaped)):
+                return (ParserState((0, 0), STATE_IN_TEXT, None),
+                        1,
+                        None)
+
+            return (self, 1, None)
+        else:
+            raise RuntimeError("""Unreachable section""")
+
+
+def _maybe_append_chunk(chunk_info, line_index, column, contents, chunks):
+    """Append chunk_info to chunks if it is set."""
+    if chunk_info:
+        chunks.append(_chunk_from_ranges(contents,
+                                         chunk_info[0],
+                                         chunk_info[1],
+                                         line_index,
+                                         column))
 
 
 def _find_spellcheckable_chunks(contents,
@@ -451,105 +546,64 @@ def _find_spellcheckable_chunks(contents,
      2. If a comment-start marker or triple quote is found, keep going
         until a comment end marker or matching triple quote is found.
     """
-    waiting_until = None
-    waiting_until_eol = False
-    state = STATE_IN_TEXT
+    state = ParserState((0, 0), STATE_IN_TEXT, None)
 
     transition_from_text = _transition_from_text_func(comment_system)
 
-    start_state_from = None
-
     chunks = []
     for line_index, line in enumerate(contents):
-        # We hit a new line. If we were waiting until the end of the line
-        # then add a new chunk in here, otherwise continue
-        if waiting_until_eol:
-            chunks.append(_chunk_from_ranges(contents,
-                                             start_state_from[0],
-                                             start_state_from[1],
-                                             line_index - 1,
-                                             len(contents[line_index - 1])))
-            waiting_until_eol = False
-            state = STATE_IN_TEXT
-
+        column = 0
         line_len = len(line)
         escape_next = False
 
-        column = 0
+        # We hit a new line. If we were waiting until the end of the line
+        # then add a new chunk in here
+        (state,
+         column_delta,
+         chunk_info) = state.get_transition(line,
+                                            line_index,
+                                            0,
+                                            False,
+                                            transition_from_text)
+        _maybe_append_chunk(chunk_info,
+                            line_index - 1,
+                            len(contents[line_index - 1]),
+                            contents,
+                            chunks)
+        column += column_delta
+
         while column < line_len:
             # Check if the next character should be considered as escaped. That
             # only happens if we are not escaped and the current character is
             # a backslash.
             is_escaped = escape_next
             escape_next = not is_escaped and line[column] == "\\"
-            last_state = state
 
-            if state == STATE_IN_TEXT:
-                (state,
-                 start_state_from,
-                 waiting_until,
-                 waiting_until_eol) = transition_from_text(line,
-                                                           line_index,
-                                                           column,
-                                                           is_escaped)
+            (state,
+             column_delta,
+             chunk_info) = state.get_transition(line,
+                                                line_index,
+                                                column,
+                                                is_escaped,
+                                                transition_from_text)
 
-                # We need to move ahead by a certain number of characters
-                # if we hit a new state
-                if last_state != state:
-                    column = start_state_from[1]
-                else:
-                    column += 1
+            column += column_delta
+            _maybe_append_chunk(chunk_info,
+                                line_index,
+                                column,
+                                contents,
+                                chunks)
 
-            elif state == STATE_IN_COMMENT:
-                if not waiting_until_eol:
-                    wait_until_len = len(waiting_until)
-                    if (_token_at_col_in_line(line,
-                                              column,
-                                              waiting_until,
-                                              wait_until_len) and
-                            not _is_escaped(line, column, is_escaped)):
-                        state = STATE_IN_TEXT
-                        chunks.append(_chunk_from_ranges(contents,
-                                                         start_state_from[0],
-                                                         start_state_from[1],
-                                                         line_index,
-                                                         column))
-
-                        # Skip ahead to end of this token
-                        column += len(waiting_until)
-                        start_state_from = None
-                        waiting_until = None
-                    else:
-                        # Move ahead by a single character here
-                        column += 1
-                else:
-                    # Can't do anything but move ahead by a single character
-                    column += 1
-
-            elif state == STATE_IN_QUOTE:
-                wait_until_len = len(waiting_until)
-                if (_token_at_col_in_line(line,
-                                          column,
-                                          waiting_until,
-                                          wait_until_len) and
-                        not _is_escaped(line, column, is_escaped)):
-                    state = STATE_IN_TEXT
-                    start_state_from = None
-                    waiting_until = None
-
-                # Always increment by one, since quotes only ever have a
-                # length of one
-                column += 1
-            else:
-                raise RuntimeError("""Unreachable section""")
-
-    if waiting_until_eol:
-        chunks.append(_chunk_from_ranges(contents,
-                                         start_state_from[0],
-                                         start_state_from[1],
-                                         line_index,
-                                         column))
-        waiting_until_eol = False
+    _maybe_append_chunk(state.get_transition(contents[-1],
+                                             len(contents) - 1,
+                                             len(contents[-1]),
+                                             False,
+                                             transition_from_text,
+                                             eof=True)[2],
+                        line_index,
+                        len(contents[line_index]),
+                        contents,
+                        chunks)
 
     return chunks
 
