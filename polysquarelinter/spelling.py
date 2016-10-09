@@ -410,6 +410,7 @@ def _transition_from_text_func(comment_system):
     return _transition_from_text
 
 
+# suppress(too-few-public-methods)
 class ParserState(six.with_metaclass(abc.ABCMeta, object)):
     """An immutable object to represent the state of the comment parser.
 
@@ -427,7 +428,7 @@ class ParserState(six.with_metaclass(abc.ABCMeta, object)):
         self._waiting_until = waiting_until
 
     @abc.abstractmethod
-    def get_transition(self,
+    def get_transition(self,  # suppress(too-many-arguments)
                        line,
                        line_index,
                        column,
@@ -443,6 +444,7 @@ class ParserState(six.with_metaclass(abc.ABCMeta, object)):
         raise NotImplementedError("""Cannot instantiate base ParserState""")
 
 
+# suppress(too-few-public-methods)
 class InTextParser(ParserState):
     """A parser that is in the state of parsing non-comment text."""
 
@@ -454,7 +456,7 @@ class InTextParser(ParserState):
         """
         super(InTextParser, self).__init__((0, 0), None)
 
-    def get_transition(self,
+    def get_transition(self,  # suppress(too-many-arguments)
                        line,
                        line_index,
                        column,
@@ -485,17 +487,21 @@ class InTextParser(ParserState):
             return (self, 1, None)
 
 
+# suppress(too-few-public-methods)
 class InCommentParser(ParserState):
     """A parser that is in the state of parsing a comment."""
 
-    def get_transition(self,
+    def get_transition(self,  # suppress(too-many-arguments)
                        line,
-                       _,
+                       line_index,
                        column,
                        is_escaped,
-                       __,
+                       transition_from_text,
                        eof=False):
         """Get transition from InCommentParser."""
+        del line_index
+        del transition_from_text
+
         if self._waiting_until != ParserState.EOL:
             wait_until_len = len(self._waiting_until)
             if (_token_at_col_in_line(line,
@@ -521,17 +527,19 @@ class InCommentParser(ParserState):
         return (self, 1, None)
 
 
+# suppress(too-few-public-methods)
 class InQuoteParser(ParserState):
     """A parser that is in the state of parsing a quote."""
 
-    def get_transition(self,
+    def get_transition(self,  # suppress(too-many-arguments)
                        line,
-                       _,
+                       line_index,
                        column,
                        is_escaped,
                        *args,
                        **kwargs):
         """Get transition from InQuoteParser."""
+        del line_index
         del args
         del kwargs
 
