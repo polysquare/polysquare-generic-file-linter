@@ -441,7 +441,7 @@ def _transition_from_text_func(comment_system):
 
 
 class ParserState(six.with_metaclass(abc.ABCMeta, object)):
-    """An immutable object to represent the state of the comment parser
+    """An immutable object to represent the state of the comment parser.
 
     The comment parser moves from left to right over the entire file
     buffer. Its state might change depending on whether or not it hits
@@ -477,7 +477,7 @@ class InTextParser(ParserState):
     """A parser that is in the state of parsing non-comment text."""
 
     def __init__(self):
-        """Initialize this InTextParser
+        """Initialize this InTextParser.
 
         Only certain underlying state values make sense, so we
         just force them.
