@@ -406,12 +406,12 @@ def _transition_from_text_func(comment_system):
 
     def _transition_from_text(line, line_index, column, is_escaped):
         """Return the new state of the comment parser."""
-        if (_token_at_col_in_line(line, column, single, single_len)):
+        if _token_at_col_in_line(line, column, single, single_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
                     None,
                     True)
-        elif (_token_at_col_in_line(line, column, begin, start_len)):
+        elif _token_at_col_in_line(line, column, begin, start_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
                     comment_system.end,
