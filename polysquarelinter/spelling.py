@@ -126,36 +126,6 @@ class _ChunkInfo(namedtuple("_ChunkInfo", "line column data")):
         return self.line < other.line
 
 
-def _get_in_out_points(lines, chunk_begin_regex, chunk_end_regex):
-    """Get a set of line/column markers for each in and out point.
-
-    The in points match :chunk_begin_regex: and the out points match
-    :chunk_end_regex:. Note that this function might return duplicated points
-    or in and out points which are otherwise invalid. They should be
-    filtered such that there are no duplicated points and no repeated
-    in points before out points.
-    """
-    all_in_points = []
-    all_out_points = []
-
-    for index, line in enumerate(lines):
-        line_out_points = []
-        line_in_points = [m.end() for m in re.finditer(chunk_begin_regex,
-                                                       line)]
-
-        if not chunk_end_regex:
-            if len(line_in_points):
-                line_out_points = [len(line)]
-        else:
-            line_out_points = [m.start() for m in re.finditer(chunk_end_regex,
-                                                              line)]
-
-        all_in_points.extend([_Marker(index, c) for c in line_in_points])
-        all_out_points.extend([_Marker(index, c) for c in line_out_points])
-
-    return all_in_points, all_out_points
-
-
 def _split_line_with_offsets(line):
     """Split a line by delimiter, but yield tuples of word and offset.
 
