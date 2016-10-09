@@ -98,18 +98,8 @@ class _Marker(namedtuple("Marker", "line col")):
 
 
 @functools.total_ordering
-class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
+class _ChunkInfo(namedtuple("_ChunkInfo", "line column data")):
     """A chunk of selected text, starting at line/column."""
-
-    # The chunk type.
-    #
-    # A Shadow chunk exists only to filter out other chunks by virtue
-    # of being "first". It shouldn't be considered a region of selected
-    # text.
-    #
-    # A real chunk is a region of selected text.
-    Real = 0
-    Shadow = 1
 
     def start(self):
         """Start point of this chunk, as a Marker."""
@@ -127,12 +117,6 @@ class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
     def __lt__(self, other):
         """True if self is less than other."""
         if self.line == other.line:
-            if self.column == other.column:
-                # Shadow chunks always end up after real chunks. This
-                # will cause them to be excluded under the
-                # first-chunk-wins rule.
-                return self.type < other.type
-
             return self.column < other.column
 
         return self.line < other.line
@@ -489,8 +473,7 @@ def _chunk_from_ranges(contents_lines,
 
     return _ChunkInfo(start_line_index,
                       start_column_index,
-                      lines,
-                      _ChunkInfo.Real)
+                      lines)
 
 
 def _token_at_col_in_line(line, column, token, token_len=None):
@@ -696,9 +679,6 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
                                                    chunks,
                                                    block_out_regexes)
 
-    # Only return chunks which are actually spellcheckable and not just
-    # quotes which are intended to block out parts of the shadow contents
-    chunks = [c for c in chunks if c.type == _ChunkInfo.Real]
     return (chunks, shadow_contents)
 
 
