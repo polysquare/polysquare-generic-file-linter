@@ -27,6 +27,8 @@ a SpellcheckError indicating the offset into that chunk
 the error was detected.
 """
 
+import abc
+
 import errno
 
 import functools
@@ -38,6 +40,8 @@ import re
 from collections import namedtuple
 
 from pkg_resources import resource_stream
+
+import six
 
 from whoosh import spelling
 from whoosh.automata import fst
@@ -436,7 +440,7 @@ def _transition_from_text_func(comment_system):
     return _transition_from_text
 
 
-class ParserState(object):
+class ParserState(six.with_metaclass(abc.ABCMeta, object)):
     """An immutable object to represent the state of the comment parser
 
     The comment parser moves from left to right over the entire file
@@ -446,13 +450,13 @@ class ParserState(object):
 
     EOL = 1
 
-    def __init__(self, started_at, state_type, waiting_until):
+    def __init__(self, started_at, waiting_until):
         """Initialize this ParserState."""
         super(ParserState, self).__init__()
         self._started_at = started_at
-        self.type = state_type
         self._waiting_until = waiting_until
 
+    @abc.abstractmethod
     def get_transition(self,
                        line,
                        line_index,
@@ -466,64 +470,110 @@ class ParserState(object):
         the TEXT state, then return that state and also any corresponding
         chunk that would have been yielded as a result.
         """
-        if self.type == STATE_IN_TEXT:
-            (state,
-             start_state_from,
-             waiting_until) = transition_from_text(line,
-                                                   line_index,
-                                                   column,
-                                                   is_escaped)
+        raise NotImplementedError("""Cannot instantiate base ParserState""")
 
-            # We need to move ahead by a certain number of characters
-            # if we hit a new state
-            if self.type != state:
-                return (ParserState(start_state_from, state, waiting_until),
-                        start_state_from[1] - column,
-                        None)
-            else:
-                return (self, 1, None)
-        elif self.type == STATE_IN_COMMENT:
-            if self._waiting_until != ParserState.EOL:
-                wait_until_len = len(self._waiting_until)
-                if (_token_at_col_in_line(line,
-                                          column,
-                                          self._waiting_until,
-                                          wait_until_len) and
-                        not _is_escaped(line, column, is_escaped)):
 
-                    # Skip ahead to end of this token
-                    return (ParserState((0, 0), STATE_IN_TEXT, None),
-                            len(self._waiting_until),
-                            self._started_at)
-            elif self._waiting_until == ParserState.EOL and column == 0:
-                # We hit a new line and the state ends here. Return
-                # corresponding state
-                return (ParserState((0, 0), STATE_IN_TEXT, None),
-                        0,
-                        self._started_at)
-            elif eof:
-                # We hit the end of the file and were still in a comment
-                # state. Grab everything up to here.
-                return (ParserState((0, 0), STATE_IN_TEXT, None),
-                        0,
-                        self._started_at)
+class InTextParser(ParserState):
+    """A parser that is in the state of parsing non-comment text."""
 
-            # Move ahead by one character otherwise
+    def __init__(self):
+        """Initialize this InTextParser
+
+        Only certain underlying state values make sense, so we
+        just force them.
+        """
+        super(InTextParser, self).__init__((0, 0), None)
+
+    def get_transition(self,
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       transition_from_text,
+                       eof=False):
+        """Get transition from InTextParser."""
+        parser_transition = {
+            STATE_IN_COMMENT: InCommentParser,
+            STATE_IN_QUOTE: InQuoteParser
+        }
+
+        (state,
+         start_state_from,
+         waiting_until) = transition_from_text(line,
+                                               line_index,
+                                               column,
+                                               is_escaped)
+
+        # We need to move ahead by a certain number of characters
+        # if we hit a new state
+        if state != STATE_IN_TEXT:
+            return (parser_transition[state](start_state_from,
+                                             waiting_until),
+                    start_state_from[1] - column,
+                    None)
+        else:
             return (self, 1, None)
-        elif self.type == STATE_IN_QUOTE:
+
+
+class InCommentParser(ParserState):
+    """A parser that is in the state of parsing a comment."""
+
+    def get_transition(self,
+                       line,
+                       _,
+                       column,
+                       is_escaped,
+                       __,
+                       eof=False):
+        """Get transition from InCommentParser."""
+        if self._waiting_until != ParserState.EOL:
             wait_until_len = len(self._waiting_until)
             if (_token_at_col_in_line(line,
                                       column,
                                       self._waiting_until,
                                       wait_until_len) and
                     not _is_escaped(line, column, is_escaped)):
-                return (ParserState((0, 0), STATE_IN_TEXT, None),
-                        1,
-                        None)
 
-            return (self, 1, None)
-        else:
-            raise RuntimeError("""Unreachable section""")
+                # Skip ahead to end of this token
+                return (InTextParser(),
+                        len(self._waiting_until),
+                        self._started_at)
+        elif self._waiting_until == ParserState.EOL and column == 0:
+            # We hit a new line and the state ends here. Return
+            # corresponding state
+            return (InTextParser(), 0, self._started_at)
+        elif eof:
+            # We hit the end of the file and were still in a comment
+            # state. Grab everything up to here.
+            return (InTextParser(), 0, self._started_at)
+
+        # Move ahead by one character otherwise
+        return (self, 1, None)
+
+
+class InQuoteParser(ParserState):
+    """A parser that is in the state of parsing a quote."""
+
+    def get_transition(self,
+                       line,
+                       _,
+                       column,
+                       is_escaped,
+                       *args,
+                       **kwargs):
+        """Get transition from InQuoteParser."""
+        del args
+        del kwargs
+
+        wait_until_len = len(self._waiting_until)
+        if (_token_at_col_in_line(line,
+                                  column,
+                                  self._waiting_until,
+                                  wait_until_len) and
+                not _is_escaped(line, column, is_escaped)):
+            return (InTextParser(), 1, None)
+
+        return (self, 1, None)
 
 
 def _maybe_append_chunk(chunk_info, line_index, column, contents, chunks):
@@ -546,8 +596,7 @@ def _find_spellcheckable_chunks(contents,
      2. If a comment-start marker or triple quote is found, keep going
         until a comment end marker or matching triple quote is found.
     """
-    state = ParserState((0, 0), STATE_IN_TEXT, None)
-
+    state = InTextParser()
     transition_from_text = _transition_from_text_func(comment_system)
 
     chunks = []
