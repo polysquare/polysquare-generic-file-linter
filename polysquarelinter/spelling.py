@@ -621,14 +621,15 @@ def _find_spellcheckable_chunks(contents,
                                 contents,
                                 chunks)
 
+    last_line_index = len(contents) - 1
     _maybe_append_chunk(state.get_transition(contents[-1],
-                                             len(contents) - 1,
+                                             last_line_index,
                                              len(contents[-1]),
                                              False,
                                              transition_from_text,
                                              eof=True)[2],
-                        line_index,
-                        len(contents[line_index]),
+                        last_line_index,
+                        len(contents[last_line_index]),
                         contents,
                         chunks)
 
