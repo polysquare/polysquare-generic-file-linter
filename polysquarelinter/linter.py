@@ -37,13 +37,15 @@ from jobstamps import jobstamp
 
 import parmap
 
-import polysquarelinter.valid_words_dictionary as valid_words_dictionary_helper
-
 from polysquarelinter.spelling import (Dictionary,
                                        SpellcheckError,
                                        spellcheck_region,
                                        spellcheckable_and_shadow_contents,
-                                       technical_words_from_shadow_contents,)
+                                       technical_words_from_shadow_contents)
+
+# suppress(I100)
+import polysquarelinter.valid_words_dictionary as valid_words_dictionary_helper
+
 try:
     from Queue import Queue
 except ImportError:

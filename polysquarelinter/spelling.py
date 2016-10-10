@@ -27,6 +27,8 @@ a SpellcheckError indicating the offset into that chunk
 the error was detected.
 """
 
+import abc
+
 import errno
 
 import functools
@@ -38,6 +40,8 @@ import re
 from collections import namedtuple
 
 from pkg_resources import resource_stream
+
+import six
 
 from whoosh import spelling
 from whoosh.automata import fst
@@ -98,18 +102,8 @@ class _Marker(namedtuple("Marker", "line col")):
 
 
 @functools.total_ordering
-class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
+class _ChunkInfo(namedtuple("_ChunkInfo", "line column data")):
     """A chunk of selected text, starting at line/column."""
-
-    # The chunk type.
-    #
-    # A Shadow chunk exists only to filter out other chunks by virtue
-    # of being "first". It shouldn't be considered a region of selected
-    # text.
-    #
-    # A real chunk is a region of selected text.
-    Real = 0
-    Shadow = 1
 
     def start(self):
         """Start point of this chunk, as a Marker."""
@@ -127,141 +121,9 @@ class _ChunkInfo(namedtuple("_ChunkInfo", "line column data type")):
     def __lt__(self, other):
         """True if self is less than other."""
         if self.line == other.line:
-            if self.column == other.column:
-                # Shadow chunks always end up after real chunks. This
-                # will cause them to be excluded under the
-                # first-chunk-wins rule.
-                return self.type < other.type
-
             return self.column < other.column
 
         return self.line < other.line
-
-
-def _get_in_out_points(lines, chunk_begin_regex, chunk_end_regex):
-    """Get a set of line/column markers for each in and out point.
-
-    The in points match :chunk_begin_regex: and the out points match
-    :chunk_end_regex:. Note that this function might return duplicated points
-    or in and out points which are otherwise invalid. They should be
-    filtered such that there are no duplicated points and no repeated
-    in points before out points.
-    """
-    all_in_points = []
-    all_out_points = []
-
-    for index, line in enumerate(lines):
-        line_out_points = []
-        line_in_points = [m.end() for m in re.finditer(chunk_begin_regex,
-                                                       line)]
-
-        if not chunk_end_regex:
-            if len(line_in_points):
-                line_out_points = [len(line)]
-        else:
-            line_out_points = [m.start() for m in re.finditer(chunk_end_regex,
-                                                              line)]
-
-        all_in_points.extend([_Marker(index, c) for c in line_in_points])
-        all_out_points.extend([_Marker(index, c) for c in line_out_points])
-
-    return all_in_points, all_out_points
-
-
-def _find_chunks(lines, chunk_begin_regex, chunk_end_regex, chunk_type):
-    """Find chunks delimited by chunk_begin_regex and chunk_end_regex.
-
-    The found chunks are returned as part of a _ChunkInfo struct which
-    contains details about the line and character offsets where the chunk
-    starts and finishes.
-
-    Note that this function may return overlapping chunks. To avoid that,
-    filter the chunks through _filter_overlapping_chunks.
-
-    The "data" member is a list of strings, each going line-by-line.
-
-    The chunk will be assigned a type of :chunk_type:
-    """
-    all_in_points, all_out_points = _get_in_out_points(lines,
-                                                       chunk_begin_regex,
-                                                       chunk_end_regex)
-
-    # Filter out alternating in and out points if they are denoted
-    # by the same marker.
-    if chunk_end_regex == chunk_begin_regex:
-        assert len(all_out_points) == len(all_in_points)
-        length = len(all_out_points)
-        all_out_points = [all_out_points[i] for i in range(1, length, 2)]
-        all_in_points = [all_in_points[i] for i in range(0, length, 2)]
-
-    # Now use all the in and out points to generate _ChunkInfo structs
-    while len(all_out_points):
-        # Move to next in/out points
-        in_point = all_in_points.pop(0)
-        out_point = all_out_points.pop(0)
-
-        # Move in and out points along such that
-        # !((in_point | out_point) & shadow_contents) and
-        # in_point > out_point
-        while len(all_in_points) and all_in_points[0] <= out_point:
-            all_in_points.pop(0)
-
-        while len(all_out_points) and out_point < in_point:
-            out_point = all_out_points.pop(0)
-
-        # Nothing here, move on
-        if in_point == out_point:
-            continue
-
-        assert out_point > in_point
-
-        chunk_data = []
-        for line_index in range(in_point.line, out_point.line + 1):
-            line = len(lines[line_index])
-            in_col = in_point.col if line_index == in_point.line else 0
-            out_col = out_point.col if line_index == out_point.line else line
-
-            chunk_data.append(lines[line_index][in_col:out_col])
-
-        yield _ChunkInfo(in_point.line,
-                         in_point.col,
-                         chunk_data,
-                         chunk_type)
-
-
-def _filter_overlapping_chunks(chunks):
-    """Return a list of non-overlapping chunks on a first chunk wins basis.
-
-    A chunk is considered to be overlapping if it starts before a chunk
-    prior to it ends. We keep the former chunk.
-    """
-    chunks = sorted(chunks)
-    if len(chunks) < 2:
-        return chunks
-
-    # Always take the first chunks
-    filtered_chunks = [chunks[0]]
-
-    compare_index = 0
-    take_index = 1
-    while take_index < len(chunks):
-        # Advance take_index if the chunk it refers to starts
-        # before the compare_index chunk end point. If this is
-        # false, then the chunks do not overlap. As such, assign
-        # compare_index to take_index and continue.
-        #
-        # This is highly sensitive to the sorting order of the chunks.
-        # Because docstrings also count as a chunk and will count
-        # in the same place as a regular "shadow" string, the shadow
-        # string must appear after the docstring does. This will
-        # cause the shadow string to be eliminated.
-        if chunks[take_index].start() > chunks[compare_index].end():
-            filtered_chunks.append(chunks[take_index])
-            compare_index = take_index
-
-        take_index += 1
-
-    return filtered_chunks
 
 
 def _split_line_with_offsets(line):
@@ -489,8 +351,7 @@ def _chunk_from_ranges(contents_lines,
 
     return _ChunkInfo(start_line_index,
                       start_column_index,
-                      lines,
-                      _ChunkInfo.Real)
+                      lines)
 
 
 def _token_at_col_in_line(line, column, token, token_len=None):
@@ -519,16 +380,14 @@ def _transition_from_text_func(comment_system):
 
     def _transition_from_text(line, line_index, column, is_escaped):
         """Return the new state of the comment parser."""
-        if (_token_at_col_in_line(line, column, single, single_len)):
+        if _token_at_col_in_line(line, column, single, single_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
-                    None,
-                    True)
-        elif (_token_at_col_in_line(line, column, begin, start_len)):
+                    ParserState.EOL)
+        elif _token_at_col_in_line(line, column, begin, start_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
-                    comment_system.end,
-                    False)
+                    comment_system.end)
         elif (_token_at_col_in_line(line, column, "\"") or
               _token_at_col_in_line(line, column, "'") and
               not _is_escaped(line, column, is_escaped)):
@@ -538,20 +397,171 @@ def _transition_from_text_func(comment_system):
                     _token_at_col_in_line(line, column, "'''")):
                 return (STATE_IN_COMMENT,
                         (line_index, column + 3),
-                        line[column:column + 3],
-                        False)
+                        line[column:column + 3])
             else:
                 return (STATE_IN_QUOTE,
                         (line_index, column + 1),
-                        line[column:column + 1],
-                        False)
+                        line[column:column + 1])
 
         return (STATE_IN_TEXT,
-                None,
-                None,
-                False)
+                (0, 0),
+                None)
 
     return _transition_from_text
+
+
+# suppress(too-few-public-methods)
+class ParserState(six.with_metaclass(abc.ABCMeta, object)):
+    """An immutable object to represent the state of the comment parser.
+
+    The comment parser moves from left to right over the entire file
+    buffer. Its state might change depending on whether or not it hits
+    a new line or a comment character.
+    """
+
+    EOL = 1
+
+    def __init__(self, started_at, waiting_until):
+        """Initialize this ParserState."""
+        super(ParserState, self).__init__()
+        self._started_at = started_at
+        self._waiting_until = waiting_until
+
+    @abc.abstractmethod
+    def get_transition(self,  # suppress(too-many-arguments)
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       transition_from_text,
+                       eof=False):
+        """Return a parser state, a move-ahead amount, and an append range.
+
+        If this parser state should terminate and return back to
+        the TEXT state, then return that state and also any corresponding
+        chunk that would have been yielded as a result.
+        """
+        raise NotImplementedError("""Cannot instantiate base ParserState""")
+
+
+# suppress(too-few-public-methods)
+class InTextParser(ParserState):
+    """A parser that is in the state of parsing non-comment text."""
+
+    def __init__(self):
+        """Initialize this InTextParser.
+
+        Only certain underlying state values make sense, so we
+        just force them.
+        """
+        super(InTextParser, self).__init__((0, 0), None)
+
+    def get_transition(self,  # suppress(too-many-arguments)
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       transition_from_text,
+                       eof=False):
+        """Get transition from InTextParser."""
+        parser_transition = {
+            STATE_IN_COMMENT: InCommentParser,
+            STATE_IN_QUOTE: InQuoteParser
+        }
+
+        (state,
+         start_state_from,
+         waiting_until) = transition_from_text(line,
+                                               line_index,
+                                               column,
+                                               is_escaped)
+
+        # We need to move ahead by a certain number of characters
+        # if we hit a new state
+        if state != STATE_IN_TEXT:
+            return (parser_transition[state](start_state_from,
+                                             waiting_until),
+                    start_state_from[1] - column,
+                    None)
+        else:
+            return (self, 1, None)
+
+
+# suppress(too-few-public-methods)
+class InCommentParser(ParserState):
+    """A parser that is in the state of parsing a comment."""
+
+    def get_transition(self,  # suppress(too-many-arguments)
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       transition_from_text,
+                       eof=False):
+        """Get transition from InCommentParser."""
+        del line_index
+        del transition_from_text
+
+        if self._waiting_until != ParserState.EOL:
+            wait_until_len = len(self._waiting_until)
+            if (_token_at_col_in_line(line,
+                                      column,
+                                      self._waiting_until,
+                                      wait_until_len) and
+                    not _is_escaped(line, column, is_escaped)):
+
+                # Skip ahead to end of this token
+                return (InTextParser(),
+                        len(self._waiting_until),
+                        self._started_at)
+        elif self._waiting_until == ParserState.EOL and column == 0:
+            # We hit a new line and the state ends here. Return
+            # corresponding state
+            return (InTextParser(), 0, self._started_at)
+        elif eof:
+            # We hit the end of the file and were still in a comment
+            # state. Grab everything up to here.
+            return (InTextParser(), 0, self._started_at)
+
+        # Move ahead by one character otherwise
+        return (self, 1, None)
+
+
+# suppress(too-few-public-methods)
+class InQuoteParser(ParserState):
+    """A parser that is in the state of parsing a quote."""
+
+    def get_transition(self,  # suppress(too-many-arguments)
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       *args,
+                       **kwargs):
+        """Get transition from InQuoteParser."""
+        del line_index
+        del args
+        del kwargs
+
+        wait_until_len = len(self._waiting_until)
+        if (_token_at_col_in_line(line,
+                                  column,
+                                  self._waiting_until,
+                                  wait_until_len) and
+                not _is_escaped(line, column, is_escaped)):
+            return (InTextParser(), 1, None)
+
+        return (self, 1, None)
+
+
+def _maybe_append_chunk(chunk_info, line_index, column, contents, chunks):
+    """Append chunk_info to chunks if it is set."""
+    if chunk_info:
+        chunks.append(_chunk_from_ranges(contents,
+                                         chunk_info[0],
+                                         chunk_info[1],
+                                         line_index,
+                                         column))
 
 
 def _find_spellcheckable_chunks(contents,
@@ -564,105 +574,64 @@ def _find_spellcheckable_chunks(contents,
      2. If a comment-start marker or triple quote is found, keep going
         until a comment end marker or matching triple quote is found.
     """
-    waiting_until = None
-    waiting_until_eol = False
-    state = STATE_IN_TEXT
-
+    state = InTextParser()
     transition_from_text = _transition_from_text_func(comment_system)
-
-    start_state_from = None
 
     chunks = []
     for line_index, line in enumerate(contents):
-        # We hit a new line. If we were waiting until the end of the line
-        # then add a new chunk in here, otherwise continue
-        if waiting_until_eol:
-            chunks.append(_chunk_from_ranges(contents,
-                                             start_state_from[0],
-                                             start_state_from[1],
-                                             line_index - 1,
-                                             len(contents[line_index - 1])))
-            waiting_until_eol = False
-            state = STATE_IN_TEXT
-
+        column = 0
         line_len = len(line)
         escape_next = False
 
-        column = 0
+        # We hit a new line. If we were waiting until the end of the line
+        # then add a new chunk in here
+        (state,
+         column_delta,
+         chunk_info) = state.get_transition(line,
+                                            line_index,
+                                            0,
+                                            False,
+                                            transition_from_text)
+        _maybe_append_chunk(chunk_info,
+                            line_index - 1,
+                            len(contents[line_index - 1]),
+                            contents,
+                            chunks)
+        column += column_delta
+
         while column < line_len:
             # Check if the next character should be considered as escaped. That
             # only happens if we are not escaped and the current character is
             # a backslash.
             is_escaped = escape_next
             escape_next = not is_escaped and line[column] == "\\"
-            last_state = state
 
-            if state == STATE_IN_TEXT:
-                (state,
-                 start_state_from,
-                 waiting_until,
-                 waiting_until_eol) = transition_from_text(line,
-                                                           line_index,
-                                                           column,
-                                                           is_escaped)
+            (state,
+             column_delta,
+             chunk_info) = state.get_transition(line,
+                                                line_index,
+                                                column,
+                                                is_escaped,
+                                                transition_from_text)
 
-                # We need to move ahead by a certain number of characters
-                # if we hit a new state
-                if last_state != state:
-                    column = start_state_from[1]
-                else:
-                    column += 1
+            _maybe_append_chunk(chunk_info,
+                                line_index,
+                                column,
+                                contents,
+                                chunks)
+            column += column_delta
 
-            elif state == STATE_IN_COMMENT:
-                if not waiting_until_eol:
-                    wait_until_len = len(waiting_until)
-                    if (_token_at_col_in_line(line,
-                                              column,
-                                              waiting_until,
-                                              wait_until_len) and
-                            not _is_escaped(line, column, is_escaped)):
-                        state = STATE_IN_TEXT
-                        chunks.append(_chunk_from_ranges(contents,
-                                                         start_state_from[0],
-                                                         start_state_from[1],
-                                                         line_index,
-                                                         column))
-
-                        # Skip ahead to end of this token
-                        column += len(waiting_until)
-                        start_state_from = None
-                        waiting_until = None
-                    else:
-                        # Move ahead by a single character here
-                        column += 1
-                else:
-                    # Can't do anything but move ahead by a single character
-                    column += 1
-
-            elif state == STATE_IN_QUOTE:
-                wait_until_len = len(waiting_until)
-                if (_token_at_col_in_line(line,
-                                          column,
-                                          waiting_until,
-                                          wait_until_len) and
-                        not _is_escaped(line, column, is_escaped)):
-                    state = STATE_IN_TEXT
-                    start_state_from = None
-                    waiting_until = None
-
-                # Always increment by one, since quotes only ever have a
-                # length of one
-                column += 1
-            else:
-                raise RuntimeError("""Unreachable section""")
-
-    if waiting_until_eol:
-        chunks.append(_chunk_from_ranges(contents,
-                                         start_state_from[0],
-                                         start_state_from[1],
-                                         line_index,
-                                         column))
-        waiting_until_eol = False
+    last_line_index = len(contents) - 1
+    _maybe_append_chunk(state.get_transition(contents[-1],
+                                             last_line_index,
+                                             len(contents[-1]),
+                                             False,
+                                             transition_from_text,
+                                             eof=True)[2],
+                        last_line_index,
+                        len(contents[last_line_index]),
+                        contents,
+                        chunks)
 
     return chunks
 
@@ -696,9 +665,6 @@ def spellcheckable_and_shadow_contents(contents, block_out_regexes=None):
                                                    chunks,
                                                    block_out_regexes)
 
-    # Only return chunks which are actually spellcheckable and not just
-    # quotes which are intended to block out parts of the shadow contents
-    chunks = [c for c in chunks if c.type == _ChunkInfo.Real]
     return (chunks, shadow_contents)
 
 
