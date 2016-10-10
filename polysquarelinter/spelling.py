@@ -614,12 +614,12 @@ def _find_spellcheckable_chunks(contents,
                                                 is_escaped,
                                                 transition_from_text)
 
-            column += column_delta
             _maybe_append_chunk(chunk_info,
                                 line_index,
                                 column,
                                 contents,
                                 chunks)
+            column += column_delta
 
     last_line_index = len(contents) - 1
     _maybe_append_chunk(state.get_transition(contents[-1],
