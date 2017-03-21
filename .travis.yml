@@ -11,13 +11,13 @@ matrix:
   - os: osx
     language: generic
     env:
-      - PYTHON=python
-      - PIP=pip
+    - PYTHON=python
+    - PIP=pip
   - os: osx
     language: generic
     env:
-      - PYTHON=python3
-      - PIP=pip3
+    - PYTHON=python3
+    - PIP=pip3
 addons:
   apt:
     packages:
@@ -49,4 +49,4 @@ deploy:
     python: 2.7
 env:
   global:
-    secure: BGXZGqnnY2DqiKTkuGog9V66jS7X5cqrSxci616BtKa1QYfTomyKCCbQ2QEeS0fgGYYeXvlYi4v4aPwHdhQ7MX9eDtn9XOD/z54tTBTAT6Xgq0m3tsJ+Y9EuEphci4UMaZdngMvtk59+O/SHWrenXlPOP9k86Th5XoAPoLDHF6Q=
+  - secure: GwAmIMsvElKpcPSahS/v0Ly+y7yvHk+6VDriQOHcpHoJAfcB/iRlIkASb2ny/ZwC0I+n/Qjv27yX9X8W+ZXMIoJZCBUuXqBTlbLi+wN36BoNT93VIQSHtSFTLbMPihEBMBuiDrSWOYtVbiR26emR2WOdh7G8Cp/h5W7+sKMoro0=
