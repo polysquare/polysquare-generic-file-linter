@@ -160,7 +160,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
             self._run_with_cache(self._temporary_file)
 
             self.assertThat(captured.stdout,  # suppress(PYC70)
-                            Not(DocTestMatches("""...spelling_error] ...""",
+                            Not(DocTestMatches("...spelling_error] ...",
                                                doctest.ELLIPSIS |
                                                doctest.NORMALIZE_WHITESPACE |
                                                doctest.REPORT_NDIFF)))
@@ -174,7 +174,7 @@ class TestLintSpellingOnlyAcceptance(TestCase):
             self._run_with_cache(self._temporary_file)
 
             self.assertThat(captured.stdout,  # suppress(PYC70)
-                            Not(DocTestMatches("""...spelling_error] ...""",
+                            Not(DocTestMatches("...spelling_error] ...",
                                                doctest.ELLIPSIS |
                                                doctest.NORMALIZE_WHITESPACE |
                                                doctest.REPORT_NDIFF)))
