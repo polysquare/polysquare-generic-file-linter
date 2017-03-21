@@ -231,6 +231,28 @@ class TestSplitSpellcheckableFromShadowContents(TestCase):
 
         self.assertEqual(chunks[1].data[0], " checkable ")
 
+    def test_no_error_on_word_in_triple_backticks(self):
+        """No error for word in triple backticks."""
+        contents = "# ```splelling```\n".splitlines()
+        chunks, _ = spelling.spellcheckable_and_shadow_contents(contents)
+
+        self.assertThat(chunks[0].data[0], Not(Equals(" checkable ")))
+
+    def test_no_error_on_word_in_triple_backticks_multiline(self):
+        """No error for word in triple backticks (multi-line)."""
+        contents = "# ```splelling\n# splolling```".splitlines()
+        chunks, _ = spelling.spellcheckable_and_shadow_contents(contents)
+
+        self.assertThat(chunks[0].data[0], Not(Contains(" spelling ")))
+        self.assertThat(chunks[1].data[0], Not(Contains(" splolling ")))
+
+    def test_error_on_word_outside_triple_backticks(self):
+        """Find errors after backticks."""
+        contents = "# ```splelling```\n# splolling".splitlines()
+        chunks, _ = spelling.spellcheckable_and_shadow_contents(contents)
+
+        self.assertEqual(chunks[2].data[0], " splolling")
+
     def test_single_quoted_regions_found_in_shadow_contents(self):
         """Single quoted chunk is found in shadow contents."""
         contents = "# spellcheckable\n 'quoted' shadow".splitlines()

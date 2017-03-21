@@ -163,6 +163,15 @@ switch should be the path to a filename where technical terms are to be stored.
 On each invocation, the union of the current file contents and the technical
 terms detected will be written back to the file.
 
+#### Disabling regions from being spell-checked ####
+
+If you need to disable a region from being spell-checked, you can wrap it
+in triple-back-ticks, like so:
+
+```
+    content that is not spell-checked
+```
+
 ### Embedding the checking API ###
 
 The exported API in `polysquarelinter.spelling` isn't by any means stable

@@ -370,16 +370,37 @@ def _is_escaped(line, column, is_escaped):
     return line[column] in ["\"", "'"] and is_escaped
 
 
-def _transition_from_text_func(comment_system):
-    """Return function that causes state transition for comment_system."""
-    start_len = len(comment_system.begin)
-    single_len = len(comment_system.single)
+class CommentSystemTransitions(object):
+    """A class to initiate transitions for a particular comment system."""
 
-    begin = comment_system.begin
-    single = comment_system.single
+    def __init__(self, comment_system):
+        """Initialize this CommentSystemTransitions with comment_system."""
+        super(CommentSystemTransitions, self).__init__()
+        self._begin = comment_system.begin
+        self._end = comment_system.end
+        self._single = comment_system.single
 
-    def _transition_from_text(line, line_index, column, is_escaped):
+        # If this comment system allows for single lines to be commented
+        # and there is no end comment, then assume that the 'single' comment
+        # is the one that starts a comment for a single line. In that case
+        # our _continue_regex is the beginning of the line, many spaces
+        # and then the escaped single comment.
+        if (comment_system.single and not comment_system.end):
+            self._continue_regex = r"^\s*{}".format(
+                re.escape(comment_system.single)
+            )
+        else:
+            self._continue_regex = None
+
+    def from_text(self, line, line_index, column, is_escaped):
         """Return the new state of the comment parser."""
+        begin = self._begin
+        end = self._end
+        single = self._single
+
+        single_len = len(single)
+        start_len = len(begin)
+
         if _token_at_col_in_line(line, column, single, single_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
@@ -387,9 +408,9 @@ def _transition_from_text_func(comment_system):
         elif _token_at_col_in_line(line, column, begin, start_len):
             return (STATE_IN_COMMENT,
                     (line_index, column + single_len),
-                    comment_system.end)
-        elif (_token_at_col_in_line(line, column, "\"") or
-              _token_at_col_in_line(line, column, "'") and
+                    end)
+        elif ((_token_at_col_in_line(line, column, "\"") or
+               _token_at_col_in_line(line, column, "'")) and
               not _is_escaped(line, column, is_escaped)):
             # Check here to see whether this is a quote or if this
             # is a spellcheckable line
@@ -407,7 +428,19 @@ def _transition_from_text_func(comment_system):
                 (0, 0),
                 None)
 
-    return _transition_from_text
+    def should_terminate_now(self, line):
+        """Whether parsing within a comment should terminate now.
+
+        This is used for comment systems where there is no comment-ending
+        character. We need it for parsing disabled regions where we don't
+        know where a comment block ends, but we know that a comment block
+        could end at a line ending. It returns true if, for a given line,
+        line is not a comment.
+        """
+        if self._continue_regex:
+            return (re.match(self._continue_regex, line) is None)
+
+        return False
 
 
 # suppress(too-few-public-methods)
@@ -433,7 +466,7 @@ class ParserState(six.with_metaclass(abc.ABCMeta, object)):
                        line_index,
                        column,
                        is_escaped,
-                       transition_from_text,
+                       comment_system_transitions,
                        eof=False):
         """Return a parser state, a move-ahead amount, and an append range.
 
@@ -461,7 +494,7 @@ class InTextParser(ParserState):
                        line_index,
                        column,
                        is_escaped,
-                       transition_from_text,
+                       comment_system_transitions,
                        eof=False):
         """Get transition from InTextParser."""
         parser_transition = {
@@ -471,10 +504,10 @@ class InTextParser(ParserState):
 
         (state,
          start_state_from,
-         waiting_until) = transition_from_text(line,
-                                               line_index,
-                                               column,
-                                               is_escaped)
+         waiting_until) = comment_system_transitions.from_text(line,
+                                                               line_index,
+                                                               column,
+                                                               is_escaped)
 
         # We need to move ahead by a certain number of characters
         # if we hit a new state
@@ -487,6 +520,73 @@ class InTextParser(ParserState):
             return (self, 1, None)
 
 
+# suppress(too-few-public-methods):
+class DisabledParser(ParserState):
+    """A parser that is in the state of parsing a disabled region.
+
+    A disabled parser takes another parser as its argument and re-constructs
+    that parser once the disabled state ends.
+    """
+
+    def __init__(self,
+                 start_state_from,
+                 resume_parser,
+                 resume_waiting_for):
+        """Initialize this DisabledParser."""
+        super(DisabledParser, self).__init__(start_state_from, "```")
+        self._resume_parser = resume_parser
+        self._resume_waiting_for = resume_waiting_for
+
+    def get_transition(self,  # suppress(too-many-arguments)
+                       line,
+                       line_index,
+                       column,
+                       is_escaped,
+                       comment_system_transitions,
+                       eof=False):
+        """Get transition from DisabledParser."""
+        # If we are at the beginning of a line, to see if we should
+        # disable processing from this point onward and get out - this will
+        # happen if we reach the end of some comment block that doesn't have
+        # an explicit end marker. We can't detect line endings here because
+        # we want a disabled region to continue across multiple lines.
+        if (column == 0 and
+                comment_system_transitions.should_terminate_now(line)):
+            return (InTextParser(), 0, None)
+
+        # Need to be a bit careful here, since we need to check what the
+        # disabled parser was waiting for and disable on that, too.
+        if (_token_at_col_in_line(line,
+                                  column,
+                                  "```",
+                                  3) and
+                not _is_escaped(line, column, is_escaped)):
+            # Hit a disable token, so we resume the old parser
+            return (self._resume_parser((line_index, column + 3),
+                                        self._resume_waiting_for),
+                    3,
+                    None)
+        elif self._resume_waiting_for != ParserState.EOL:
+            wait_until_len = len(self._resume_waiting_for)
+            if (_token_at_col_in_line(line,
+                                      column,
+                                      self._resume_waiting_for,
+                                      wait_until_len) and
+                    not _is_escaped(line, column, is_escaped)):
+
+                # Skip ahead to end of this token
+                return (InTextParser(),
+                        len(self._waiting_until),
+                        None)
+        elif eof:
+            # We hit the end of the file and were still in a comment
+            # state. Grab everything up to here.
+            return (InTextParser(), 0, None)
+
+        # Move ahead by one character otherwise
+        return (self, 1, None)
+
+
 # suppress(too-few-public-methods)
 class InCommentParser(ParserState):
     """A parser that is in the state of parsing a comment."""
@@ -496,13 +596,21 @@ class InCommentParser(ParserState):
                        line_index,
                        column,
                        is_escaped,
-                       transition_from_text,
+                       comment_system_transitions,
                        eof=False):
         """Get transition from InCommentParser."""
-        del line_index
-        del transition_from_text
+        del comment_system_transitions
 
-        if self._waiting_until != ParserState.EOL:
+        if (_token_at_col_in_line(line,
+                                  column,
+                                  "```",
+                                  3) and
+                not _is_escaped(line, column, is_escaped)):
+            # Hit a disable token, so resume the last parser
+            return (DisabledParser((line_index, column + 3),
+                                   self.__class__,
+                                   self._waiting_until), 3, self._started_at)
+        elif self._waiting_until != ParserState.EOL:
             wait_until_len = len(self._waiting_until)
             if (_token_at_col_in_line(line,
                                       column,
@@ -573,9 +681,10 @@ def _find_spellcheckable_chunks(contents,
         can be spellchecked from the point of the comment
      2. If a comment-start marker or triple quote is found, keep going
         until a comment end marker or matching triple quote is found.
+     3. In both cases, ignore anything in triple backticks.
     """
     state = InTextParser()
-    transition_from_text = _transition_from_text_func(comment_system)
+    comment_system_transitions = CommentSystemTransitions(comment_system)
 
     chunks = []
     for line_index, line in enumerate(contents):
@@ -591,7 +700,7 @@ def _find_spellcheckable_chunks(contents,
                                             line_index,
                                             0,
                                             False,
-                                            transition_from_text)
+                                            comment_system_transitions)
         _maybe_append_chunk(chunk_info,
                             line_index - 1,
                             len(contents[line_index - 1]),
@@ -612,7 +721,7 @@ def _find_spellcheckable_chunks(contents,
                                                 line_index,
                                                 column,
                                                 is_escaped,
-                                                transition_from_text)
+                                                comment_system_transitions)
 
             _maybe_append_chunk(chunk_info,
                                 line_index,
@@ -622,12 +731,15 @@ def _find_spellcheckable_chunks(contents,
             column += column_delta
 
     last_line_index = len(contents) - 1
-    _maybe_append_chunk(state.get_transition(contents[-1],
-                                             last_line_index,
-                                             len(contents[-1]),
-                                             False,
-                                             transition_from_text,
-                                             eof=True)[2],
+    (state,
+     column_delta,
+     chunk_info) = state.get_transition(contents[-1],
+                                        last_line_index,
+                                        len(contents[-1]),
+                                        False,
+                                        comment_system_transitions,
+                                        eof=True)
+    _maybe_append_chunk(chunk_info,
                         last_line_index,
                         len(contents[last_line_index]),
                         contents,

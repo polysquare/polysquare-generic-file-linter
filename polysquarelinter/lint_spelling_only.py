@@ -25,6 +25,33 @@ from polysquarelinter import (spelling,
 from polysquarelinter.spelling import spellcheck_region
 
 
+def _filter_disabled_regions(contents):
+    """Filter regions that are contained in back-ticks."""
+    contents = list(contents)
+
+    in_backticks = False
+    contents_len = len(contents)
+
+    index = 0
+    while index < contents_len:
+        character = contents[index]
+        if character == "`":
+            # Check to see if we should toggle the in_backticks
+            # mode here by looking ahead for another two characters.
+            if ((index + 2) < contents_len and
+                    "".join(contents[index:index + 3]) == "```"):
+                in_backticks = not in_backticks
+                index += 3
+                continue
+
+        if in_backticks:
+            contents[index] = " "
+
+        index += 1
+
+    return "".join(contents)
+
+
 def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     """Run spellcheck on the contents of a file.
 
@@ -40,6 +67,7 @@ def spellcheck(contents, technical_terms=None, spellcheck_cache=None):
     graph is an expensive operation which can take a few seconds to complete.
     """
     contents = spelling.filter_nonspellcheckable_tokens(contents)
+    contents = _filter_disabled_regions(contents)
     lines = contents.splitlines(True)
     user_words, valid_words = valid_words_dictionary.create(spellcheck_cache)
     technical_words = technical_words_dictionary.create(technical_terms,
