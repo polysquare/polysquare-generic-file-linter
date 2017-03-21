@@ -25,7 +25,7 @@ from iocapture import capture
 from polysquarelinter import lint_spelling_only
 
 from testtools import TestCase
-from testtools.matchers import DocTestMatches
+from testtools.matchers import (DocTestMatches, Not)
 
 
 def run_with_kwargs_as_switches(func, *args, **kwargs):
@@ -141,6 +141,48 @@ class TestLintSpellingOnlyAcceptance(TestCase):
         """Report spelling failures."""
         with open(self._temporary_file, "w") as f:
             f.write("splelling error\n")
+
+        with capture() as captured:
+            self._run_with_cache(self._temporary_file)
+
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            DocTestMatches("""... [file/spelling_error] ...""",
+                                           doctest.ELLIPSIS |
+                                           doctest.NORMALIZE_WHITESPACE |
+                                           doctest.REPORT_NDIFF))
+
+    def test_ignore_errors_in_backticks(self):
+        """Ignore errors inside of back-ticks."""
+        with open(self._temporary_file, "w") as f:
+            f.write("```splelling error```\n")
+
+        with capture() as captured:
+            self._run_with_cache(self._temporary_file)
+
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            Not(DocTestMatches("""...spelling_error] ...""",
+                                               doctest.ELLIPSIS |
+                                               doctest.NORMALIZE_WHITESPACE |
+                                               doctest.REPORT_NDIFF)))
+
+    def test_ignore_errors_in_multiline_backticks(self):
+        """Ignore errors inside of multi-line back-ticks."""
+        with open(self._temporary_file, "w") as f:
+            f.write("```splelling\neror```\n")
+
+        with capture() as captured:
+            self._run_with_cache(self._temporary_file)
+
+            self.assertThat(captured.stdout,  # suppress(PYC70)
+                            Not(DocTestMatches("""...spelling_error] ...""",
+                                               doctest.ELLIPSIS |
+                                               doctest.NORMALIZE_WHITESPACE |
+                                               doctest.REPORT_NDIFF)))
+
+    def test_report_spelling_failure_after_backticks(self):
+        """Report spelling failures after back-ticks."""
+        with open(self._temporary_file, "w") as f:
+            f.write("```section```\nsplelling error\n")
 
         with capture() as captured:
             self._run_with_cache(self._temporary_file)
