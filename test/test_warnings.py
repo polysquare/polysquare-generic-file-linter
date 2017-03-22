@@ -545,6 +545,21 @@ class TestSpellingErrors(DisableStampingTestCase):
         self.assertTrue(result)
 
     @parameterized.expand(_KNOWN_STYLES)
+    def test_no_spelling_error_backticks_docstrings(self, style):
+        """No spelling errors inside docstring where blocked out."""
+        content = (
+            "{s}{e}\n"
+            "\"\"\"Header.\n"
+            "```\n"
+            "esssscaped"
+            "```\n"
+            "\"\"\"\n"
+            "technical_term\n"
+        )
+        result = self._spellcheck_lint(content, style)
+        self.assertTrue(result)
+
+    @parameterized.expand(_KNOWN_STYLES)
     def test_no_persist_multiline_blocked_region(self, style):
         """Don't persist multi-line blocked region."""
         result = self._spellcheck_lint("{s}{e}\n"

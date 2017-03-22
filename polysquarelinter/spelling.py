@@ -428,7 +428,7 @@ class CommentSystemTransitions(object):
                 (0, 0),
                 None)
 
-    def should_terminate_now(self, line):
+    def should_terminate_now(self, line, waiting_for):
         """Whether parsing within a comment should terminate now.
 
         This is used for comment systems where there is no comment-ending
@@ -437,6 +437,9 @@ class CommentSystemTransitions(object):
         could end at a line ending. It returns true if, for a given line,
         line is not a comment.
         """
+        if waiting_for not in (ParserState.EOL, self._end):
+            return False
+
         if self._continue_regex:
             return (re.match(self._continue_regex, line) is None)
 
@@ -551,7 +554,10 @@ class DisabledParser(ParserState):
         # an explicit end marker. We can't detect line endings here because
         # we want a disabled region to continue across multiple lines.
         if (column == 0 and
-                comment_system_transitions.should_terminate_now(line)):
+                comment_system_transitions.should_terminate_now(
+                    line,
+                    self._resume_waiting_for
+                )):
             return (InTextParser(), 0, None)
 
         # Need to be a bit careful here, since we need to check what the
